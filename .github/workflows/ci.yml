@@ -1,0 +1,23 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - name: Check @webwaka/core version
+        run: |
+          LOCK_VER=$(grep -A2 '"@webwaka/core"' package-lock.json | grep '"version"' | head -1 | grep -oP '"[0-9]+\.[0-9]+\.[0-9]+"' | tr -d '"')
+          echo "Resolved @webwaka/core: $LOCK_VER"
+          if [[ "$LOCK_VER" < "1.6.0" ]]; then echo "core must be >= 1.6.0"; exit 1; fi
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
