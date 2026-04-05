@@ -1,0 +1,40 @@
+name = "webwaka-cross-cutting-api"
+main = "src/worker.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "development"
+
+# ─── Production ──────────────────────────────────────────────────────────────
+[env.production]
+name = "webwaka-cross-cutting-api-prod"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "webwaka-cross-cutting-db-prod"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[[env.production.kv_namespaces]]
+binding = "SESSIONS_KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[[env.production.kv_namespaces]]
+binding = "TENANT_CONFIG_KV"
+id = "REPLACE_WITH_TENANT_KV_ID"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+
+# ─── Staging ─────────────────────────────────────────────────────────────────
+[env.staging]
+name = "webwaka-cross-cutting-api-staging"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "webwaka-cross-cutting-db-staging"
+database_id = "REPLACE_WITH_STAGING_D1_ID"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+
