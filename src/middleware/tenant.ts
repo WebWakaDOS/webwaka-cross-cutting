@@ -1,15 +1,13 @@
 /**
  * Tenant middleware — extracts and validates x-tenant-id header.
  */
-import type { Context, Next } from "hono";
-import type { Env } from "../worker";
+import type { MiddlewareHandler } from "hono";
 
-export async function tenantMiddleware(c: Context<{ Bindings: Env }>, next: Next) {
+export const tenantMiddleware: MiddlewareHandler = async (c, next) => {
   const tenantId = c.req.header("x-tenant-id");
   if (c.req.path.startsWith("/api/") && !tenantId) {
     return c.json({ error: "Missing x-tenant-id header" }, 400);
   }
   c.set("tenantId", tenantId ?? "");
   await next();
-}
-
+};

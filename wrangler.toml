@@ -25,6 +25,12 @@ id = "REPLACE_WITH_TENANT_KV_ID"
 
 [env.production.vars]
 ENVIRONMENT = "production"
+AI_PLATFORM_URL = "https://webwaka-ai-platform-api.webwaka.workers.dev"
+
+# Secrets (set via: wrangler secret put <SECRET> --env production)
+# JWT_SECRET - Must match all other WebWaka services
+# INTER_SERVICE_SECRET - Shared secret for cross-service calls
+# AI_PLATFORM_TOKEN - Service token for AI platform access
 
 # ─── Staging ─────────────────────────────────────────────────────────────────
 [env.staging]

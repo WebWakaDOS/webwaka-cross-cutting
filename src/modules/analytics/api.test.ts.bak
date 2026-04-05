@@ -1,0 +1,325 @@
+/**
+ * XCT-5 Analytics API Tests
+ * Run: npm test -- src/modules/analytics/api.test.ts
+ */
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { analyticsRouter } from "./api";
+import { Hono } from "hono";
+
+// Mock environment
+type MockEnv = {
+  DB: any;
+  SESSIONS_KV: KVNamespace;
+  TENANT_CONFIG_KV: KVNamespace;
+  JWT_SECRET: string;
+  AI_PLATFORM_URL: string;
+  AI_PLATFORM_TOKEN: string;
+  INTER_SERVICE_SECRET: string;
+  ENVIRONMENT: string;
+};
+
+// Mock D1 database
+class MockD1Database {
+  prepare(_sql: string) {
+    return {
+      bind: (..._args: any[]) => ({
+        first: async () => {
+          return { 1: 1 };
+        },
+        all: async () => {
+          // Return mock data for queries
+          if (_sql.includes("analytics_daily_metrics")) {
+            return {
+              results: [
+                {
+                  vertical: "commerce",
+                  total_revenue_kobo: 5000000,
+                  total_transactions: 150,
+                  total_active_users: 45,
+                  total_new_users: 12,
+                  total_actions: 500,
+                  total_failed_actions: 5,
+                },
+                {
+                  vertical: "fintech",
+                  total_revenue_kobo: 2500000,
+                  total_transactions: 80,
+                  total_active_users: 30,
+                  total_new_users: 8,
+                  total_actions: 300,
+                  total_failed_actions: 2,
+                },
+              ],
+            };
+          }
+          if (_sql.includes("analytics_monthly_aggregates")) {
+            return {
+              results: [
+                {
+                  metric_month: "2026-03",
+                  revenue_kobo: 10000000,
+                  transactions: 300,
+                  avg_growth_rate: 1250,
+                },
+                {
+                  metric_month: "2026-02",
+                  revenue_kobo: 8000000,
+                  transactions: 250,
+                  avg_growth_rate: 1100,
+                },
+              ],
+            };
+          }
+          if (_sql.includes("analytics_insights")) {
+            return {
+              results: [
+                {
+                  id: "ins-abc123",
+                  tenant_id: "tenant-123",
+                  insight_type: "revenue",
+                  title: "Revenue Growth Alert",
+                  description: "Commerce revenue increased by 25% this month",
+                  confidence: 85,
+                  action_items: '["Increase marketing spend", "Analyze top-selling products"]',
+                  created_at: Date.now(),
+                },
+              ],
+            };
+          }
+          return { results: [] };
+        },
+        run: async () => ({ success: true }),
+      }),
+    };
+  }
+}
+
+// Mock KV namespace
+class MockKVNamespace {
+  private store: Map<string, ArrayBuffer> = new Map();
+
+  async get(key: string): Promise<ArrayBuffer | null> {
+    return this.store.get(key) || null;
+  }
+
+  async put(key: string, value: ArrayBuffer): Promise<void> {
+    this.store.set(key, value);
+  }
+
+  async delete(key: string): Promise<void> {
+    this.store.delete(key);
+  }
+
+  async list(): Promise<{ keys: string[] }> {
+    return { keys: Array.from(this.store.keys()) };
+  }
+
+  async getWithMetadata(): Promise<{ value: ArrayBuffer | null; metadata: any }> {
+    return { value: null, metadata: null };
+  }
+}
+
+describe("XCT-5 Analytics API", () => {
+  let app: Hono;
+  // @ts-expect-error - Unused variable for setup
+  let mockEnv: MockEnv;
+
+  beforeAll(() => {
+    // @ts-expect-error - Setup mock environment
+    mockEnv = {
+      DB: new MockD1Database(),
+      // @ts-expect-error - KV mock
+      SESSIONS_KV: new MockKVNamespace(),
+      // @ts-expect-error - KV mock
+      TENANT_CONFIG_KV: new MockKVNamespace(),
+      JWT_SECRET: "test-secret",
+      AI_PLATFORM_URL: "https://webwaka-ai-platform.webwaka.workers.dev",
+      AI_PLATFORM_TOKEN: "test-token",
+      INTER_SERVICE_SECRET: "test-secret",
+      ENVIRONMENT: "test",
+    };
+
+    // Set up auth and tenant middleware to inject tenant ID
+    app = new Hono();
+    app.use("*", async (c, next) => {
+      c.set("tenantId", "tenant-123");
+      await next();
+    });
+    app.route("/api/analytics", analyticsRouter);
+  });
+
+  afterAll(() => {
+    // Cleanup
+  });
+
+  describe("GET /api/analytics", () => {
+    it("should return module status", async () => {
+      const res = await app.request("/api/analytics");
+      expect(res.status).toBe(200);
+
+      const json = await res.json() as any;
+      expect(json.module).toBe("analytics");
+      expect(json.version).toBe("1.0.0");
+      expect(json.epic).toBe("XCT-5");
+      expect(json.status).toBe("operational");
+    });
+  });
+
+  describe("GET /api/analytics/summary", () => {
+    it("should return platform-wide metrics summary", async () => {
+      const res = await app.request("/api/analytics/summary");
+      expect(res.status).toBe(200);
+
+      const json = await res.json() as any;
+      expect(json.period).toBe("30d");
+      expect(json.verticals).toBeDefined();
+      expect(Array.isArray(json.verticals)).toBe(true);
+      expect(json.totals).toBeDefined();
+    });
+
+    it("should filter by vertical when specified", async () => {
+      const res = await app.request("/api/analytics/summary?vertical=commerce");
+      expect(res.status).toBe(200);
+
+      const json = await res.json() as any;
+      expect(json.verticals[0].vertical).toBe("commerce");
+    });
+
+    it("should return 401 when no tenant ID", async () => {
+      const testApp = new Hono();
+      testApp.route("/api/analytics", analyticsRouter);
+
+      const res = await testApp.request("/api/analytics/summary");
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("GET /api/analytics/revenue", () => {
+    it("should return revenue breakdown with trends", async () => {
+      const res = await app.request("/api/analytics/revenue");
+      expect(res.status).toBe(200);
+
+      const json = await res.json() as any;
+      expect(json.daily).toBeDefined();
+      expect(json.monthly_trends).toBeDefined();
+      expect(json.period).toBe("30d");
+    });
+  });
+
+  describe("GET /api/analytics/growth", () => {
+    it("should return user growth metrics", async () => {
+      const res = await app.request("/api/analytics/growth");
+      expect(res.status).toBe(200);
+
+      const json = await res.json() as any;
+      expect(json.growth_data).toBeDefined();
+      expect(json.period).toBe("30d");
+    });
+
+    it("should calculate growth rates correctly", async () => {
+      const res = await app.request("/api/analytics/growth");
+      const json = await res.json() as any;
+
+      if (json.growth_data.length > 1) {
+        expect(typeof json.growth_data[0].growth_rate).toBe("number");
+      }
+    });
+  });
+
+  describe("POST /api/analytics/events", () => {
+    it("should ingest analytics event successfully", async () => {
+      const eventPayload = {
+        event_type: "order_completed",
+        vertical: "commerce",
+        event_data: {
+          order_id: "ord-123",
+          value_kobo: 50000,
+          user_id: "user-456",
+        },
+      };
+
+      const res = await app.request("/api/analytics/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(eventPayload),
+      });
+
+      expect(res.status).toBe(201);
+
+      const json = await res.json() as any;
+      expect(json.success).toBe(true);
+      expect(json.id).toBeDefined();
+      expect(json.id).toMatch(/^evt-/);
+    });
+
+    it("should validate event payload", async () => {
+      const invalidPayload = {
+        event_type: "", // Invalid: empty string
+        vertical: "invalid-vertical", // Invalid: not in enum
+        event_data: {},
+      };
+
+      const res = await app.request("/api/analytics/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(invalidPayload),
+      });
+
+      expect(res.status).toBe(400);
+
+      const json = await res.json() as any;
+      expect(json.error).toBe("Validation failed");
+      expect(json.details).toBeDefined();
+    });
+
+    it("should return 401 when no tenant ID", async () => {
+      const testApp = new Hono();
+      testApp.route("/api/analytics", analyticsRouter);
+
+      const res = await testApp.request("/api/analytics/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("GET /api/analytics/insights", () => {
+    it("should return AI-generated insights", async () => {
+      const res = await app.request("/api/analytics/insights");
+      expect(res.status).toBe(200);
+
+      const json = await res.json() as any;
+      expect(json.insights).toBeDefined();
+      expect(Array.isArray(json.insights)).toBe(true);
+      expect(json.ai_enabled).toBe(true);
+    });
+
+    it("should return cached insights when available", async () => {
+      const res = await app.request("/api/analytics/insights");
+      expect(res.status).toBe(200);
+
+      const json = await res.json() as any;
+      expect(json.insights.length).toBeGreaterThan(0);
+      expect(json.insights[0]).toHaveProperty("id");
+      expect(json.insights[0]).toHaveProperty("insight_type");
+      expect(json.insights[0]).toHaveProperty("title");
+      expect(json.insights[0]).toHaveProperty("confidence");
+    });
+  });
+
+  describe("GET /api/analytics/health", () => {
+    it("should return module health status", async () => {
+      const res = await app.request("/api/analytics/health");
+      expect(res.status).toBe(200);
+
+      const json = await res.json() as any;
+      expect(json.status).toBe("healthy");
+      expect(json.database).toBe(true);
+      expect(json.ai_platform).toBe(true);
+      expect(json.tenant_id).toBe("tenant-123");
+    });
+  });
+});

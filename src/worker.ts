@@ -12,17 +12,23 @@ import { analyticsRouter } from "./modules/analytics/api";
 import { authMiddleware } from "./middleware/auth";
 import { tenantMiddleware } from "./middleware/tenant";
 
-export interface Env {
+export type Env = {
   DB: D1Database;
   SESSIONS_KV: KVNamespace;
   TENANT_CONFIG_KV: KVNamespace;
+  JWT_SECRET: string;
   AI_PLATFORM_URL: string;
   AI_PLATFORM_TOKEN: string;
   INTER_SERVICE_SECRET: string;
   ENVIRONMENT: string;
-}
+};
 
-const app = new Hono<{ Bindings: Env }>();
+export type Variables = {
+  tenantId: string;
+  jwtPayload?: any;
+};
+
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Global middleware
 app.use("*", tenantMiddleware);
@@ -41,4 +47,3 @@ app.route("/api/chat", chatRouter);
 app.route("/api/analytics", analyticsRouter);
 
 export default app;
-
