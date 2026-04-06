@@ -2,7 +2,7 @@
 -- Additional table for workflow rules
 PRAGMA journal_mode = WAL;
 
-CREATE TABLE IF NOT EXISTS ticket_workflows (
+CREATE TABLE IF NOT EXISTS xcut_ticket_workflows (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -13,5 +13,5 @@ CREATE TABLE IF NOT EXISTS ticket_workflows (
   is_active INTEGER NOT NULL DEFAULT 1,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_ticket_workflows_tenant ON ticket_workflows(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_ticket_workflows_active ON ticket_workflows(tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_ticket_workflows_tenant ON xcut_ticket_workflows(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_workflows_active ON xcut_ticket_workflows(tenant_id, is_active);

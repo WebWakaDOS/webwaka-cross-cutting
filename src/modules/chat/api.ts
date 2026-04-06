@@ -106,7 +106,7 @@ async function isParticipant(
   userId: string
 ): Promise<boolean> {
   const conv = await db.prepare(
-    `SELECT participants FROM chat_conversations WHERE id = ? AND tenant_id = ?`
+    `SELECT participants FROM xcut_chat_conversations WHERE id = ? AND tenant_id = ?`
   ).bind(conversationId, tenantId).first() as any;
 
   if (!conv) return false;
@@ -145,7 +145,7 @@ chatRouter.get("/conversations", async (c) => {
     const status = c.req.query("status");
     const limit = parseInt(c.req.query("limit") || "50");
 
-    let query = `SELECT * FROM chat_conversations WHERE tenant_id = ?`;
+    let query = `SELECT * FROM xcut_chat_conversations WHERE tenant_id = ?`;
     const params: any[] = [tenantId];
 
     if (channel) { query += ` AND channel = ?`; params.push(channel); }
@@ -181,7 +181,7 @@ chatRouter.post("/conversations", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO chat_conversations (id, tenant_id, channel, status, participants, title, created_at, updated_at)
+      INSERT INTO xcut_chat_conversations (id, tenant_id, channel, status, participants, title, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       conversationId, tenantId, data.channel, "open",
@@ -216,7 +216,7 @@ chatRouter.patch("/conversations/:id", async (c) => {
     params.push(now, id, tenantId);
 
     await c.env.DB.prepare(
-      `UPDATE chat_conversations SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_chat_conversations SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
     ).bind(...params).run();
 
     return c.json({ success: true });
@@ -243,8 +243,8 @@ chatRouter.get("/conversations/:id/messages", async (c) => {
       SELECT m.*, f.filename, f.original_name, f.mimetype, f.size_bytes,
              f.storage_url, f.thumbnail_url, f.media_type as file_media_type,
              f.width, f.height, f.duration_seconds
-      FROM chat_messages m
-      LEFT JOIN chat_files f ON m.file_id = f.id
+      FROM xcut_chat_messages m
+      LEFT JOIN xcut_chat_files f ON m.file_id = f.id
       WHERE m.conversation_id = ?
     `;
     const params: any[] = [conversationId];
@@ -316,7 +316,7 @@ chatRouter.post("/conversations/:id/messages", async (c) => {
 
     if (fileId) {
       const file = await c.env.DB.prepare(
-        `SELECT * FROM chat_files WHERE id = ? AND conversation_id = ? AND tenant_id = ?`
+        `SELECT * FROM xcut_chat_files WHERE id = ? AND conversation_id = ? AND tenant_id = ?`
       ).bind(fileId, conversationId, tenantId).first() as any;
 
       if (!file) return c.json({ error: "File not found or not accessible" }, 404);
@@ -324,7 +324,7 @@ chatRouter.post("/conversations/:id/messages", async (c) => {
     }
 
     await c.env.DB.prepare(`
-      INSERT INTO chat_messages (id, conversation_id, sender_id, body, message_type, file_id, metadata, created_at)
+      INSERT INTO xcut_chat_messages (id, conversation_id, sender_id, body, message_type, file_id, metadata, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       messageId, conversationId, senderId, data.body || "",
@@ -333,7 +333,7 @@ chatRouter.post("/conversations/:id/messages", async (c) => {
     ).run();
 
     await c.env.DB.prepare(
-      `UPDATE chat_conversations SET updated_at = ? WHERE id = ?`
+      `UPDATE xcut_chat_conversations SET updated_at = ? WHERE id = ?`
     ).bind(now, conversationId).run();
 
     return c.json({ success: true, id: messageId, message_type: messageType }, 201);
@@ -356,7 +356,7 @@ chatRouter.patch("/messages/:id/read", async (c) => {
     if (!readerId) return c.json({ error: "reader_id required" }, 400);
 
     const result = await c.env.DB.prepare(
-      `SELECT read_by FROM chat_messages WHERE id = ?`
+      `SELECT read_by FROM xcut_chat_messages WHERE id = ?`
     ).bind(id).first();
 
     if (!result) return c.json({ error: "Message not found" }, 404);
@@ -365,7 +365,7 @@ chatRouter.patch("/messages/:id/read", async (c) => {
     if (!readBy.includes(readerId)) {
       readBy.push(readerId);
       await c.env.DB.prepare(
-        `UPDATE chat_messages SET read_by = ? WHERE id = ?`
+        `UPDATE xcut_chat_messages SET read_by = ? WHERE id = ?`
       ).bind(JSON.stringify(readBy), id).run();
     }
 
@@ -395,7 +395,7 @@ chatRouter.post("/files/register", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO chat_files (id, tenant_id, conversation_id, uploaded_by, filename, original_name, mimetype, size_bytes, storage_url, thumbnail_url, media_type, width, height, duration_seconds, is_accessible, created_at)
+      INSERT INTO xcut_chat_files (id, tenant_id, conversation_id, uploaded_by, filename, original_name, mimetype, size_bytes, storage_url, thumbnail_url, media_type, width, height, duration_seconds, is_accessible, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
     `).bind(
       fileId, tenantId, data.conversation_id, uploadedBy,
@@ -434,7 +434,7 @@ chatRouter.get("/conversations/:id/files", async (c) => {
     const hasAccess = await isParticipant(c.env.DB, conversationId, tenantId, userId);
     if (!hasAccess) return c.json({ error: "Not a participant in this conversation" }, 403);
 
-    let query = `SELECT * FROM chat_files WHERE conversation_id = ? AND tenant_id = ? AND is_accessible = 1`;
+    let query = `SELECT * FROM xcut_chat_files WHERE conversation_id = ? AND tenant_id = ? AND is_accessible = 1`;
     const params: any[] = [conversationId, tenantId];
 
     if (media_type) { query += ` AND media_type = ?`; params.push(media_type); }
@@ -471,7 +471,7 @@ chatRouter.get("/files/:id", async (c) => {
     const userId = (c.get("jwtPayload") as any)?.userId || "system";
 
     const file = await c.env.DB.prepare(
-      `SELECT * FROM chat_files WHERE id = ? AND tenant_id = ? AND is_accessible = 1`
+      `SELECT * FROM xcut_chat_files WHERE id = ? AND tenant_id = ? AND is_accessible = 1`
     ).bind(fileId, tenantId).first() as any;
 
     if (!file) return c.json({ error: "File not found" }, 404);
@@ -508,7 +508,7 @@ chatRouter.delete("/files/:id", async (c) => {
     const userId = (c.get("jwtPayload") as any)?.userId || "system";
 
     const file = await c.env.DB.prepare(
-      `SELECT * FROM chat_files WHERE id = ? AND tenant_id = ?`
+      `SELECT * FROM xcut_chat_files WHERE id = ? AND tenant_id = ?`
     ).bind(fileId, tenantId).first() as any;
 
     if (!file) return c.json({ error: "File not found" }, 404);
@@ -517,7 +517,7 @@ chatRouter.delete("/files/:id", async (c) => {
     }
 
     await c.env.DB.prepare(
-      `UPDATE chat_files SET is_accessible = 0 WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_chat_files SET is_accessible = 0 WHERE id = ? AND tenant_id = ?`
     ).bind(fileId, tenantId).run();
 
     return c.json({ success: true });

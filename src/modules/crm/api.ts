@@ -98,7 +98,7 @@ async function recalculateLeadScore(
 ): Promise<number> {
   // Fetch rules for tenant + platform defaults
   const rulesResult = await db.prepare(`
-    SELECT * FROM crm_scoring_rules
+    SELECT * FROM xcut_crm_scoring_rules
     WHERE (tenant_id = ? OR tenant_id = 'default') AND is_active = 1
     ORDER BY tenant_id DESC
   `).bind(tenantId).all();
@@ -137,7 +137,7 @@ async function recalculateLeadScore(
 
   const now = Date.now();
   await db.prepare(`
-    UPDATE crm_contacts SET lead_score = ?, score_updated_at = ? WHERE id = ? AND tenant_id = ?
+    UPDATE xcut_crm_contacts SET lead_score = ?, score_updated_at = ? WHERE id = ? AND tenant_id = ?
   `).bind(score, now, contactId, tenantId).run();
 
   return score;
@@ -154,7 +154,7 @@ async function fireAutomationWorkflows(
 ): Promise<void> {
   try {
     const workflowsResult = await db.prepare(`
-      SELECT * FROM crm_automation_workflows
+      SELECT * FROM xcut_crm_automation_workflows
       WHERE (tenant_id = ? OR tenant_id = 'default') AND trigger_event = ? AND is_active = 1
     `).bind(tenantId, triggerEvent).all();
 
@@ -178,7 +178,7 @@ async function fireAutomationWorkflows(
       if (!conditionsMet) continue;
 
       const actionsResult = await db.prepare(`
-        SELECT * FROM crm_automation_actions WHERE workflow_id = ? ORDER BY step_order ASC
+        SELECT * FROM xcut_crm_automation_actions WHERE workflow_id = ? ORDER BY step_order ASC
       `).bind(workflow.id).all();
 
       const executedActions: string[] = [];
@@ -195,7 +195,7 @@ async function fireAutomationWorkflows(
               if (contactId) {
                 const actId = generateId("act");
                 await db.prepare(`
-                  INSERT INTO crm_activities (id, tenant_id, contact_id, deal_id, activity_type, subject, description, completed, created_by, created_at, updated_at)
+                  INSERT INTO xcut_crm_activities (id, tenant_id, contact_id, deal_id, activity_type, subject, description, completed, created_by, created_at, updated_at)
                   VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'automation', ?, ?)
                 `).bind(
                   actId, tenantId, contactId, dealId || null,
@@ -210,7 +210,7 @@ async function fireAutomationWorkflows(
             case "update_stage": {
               if (contactId && config.stage) {
                 await db.prepare(`
-                  UPDATE crm_contacts SET stage = ?, updated_at = ? WHERE id = ? AND tenant_id = ?
+                  UPDATE xcut_crm_contacts SET stage = ?, updated_at = ? WHERE id = ? AND tenant_id = ?
                 `).bind(config.stage, Date.now(), contactId, tenantId).run();
               }
               break;
@@ -218,7 +218,7 @@ async function fireAutomationWorkflows(
             case "assign_contact": {
               if (contactId && config.assigned_to) {
                 await db.prepare(`
-                  UPDATE crm_contacts SET assigned_to = ?, updated_at = ? WHERE id = ? AND tenant_id = ?
+                  UPDATE xcut_crm_contacts SET assigned_to = ?, updated_at = ? WHERE id = ? AND tenant_id = ?
                 `).bind(config.assigned_to, Date.now(), contactId, tenantId).run();
               }
               break;
@@ -233,7 +233,7 @@ async function fireAutomationWorkflows(
 
       // Log execution
       await db.prepare(`
-        INSERT INTO crm_automation_logs (id, workflow_id, contact_id, deal_id, trigger_event, actions_executed, status, error, executed_at)
+        INSERT INTO xcut_crm_automation_logs (id, workflow_id, contact_id, deal_id, trigger_event, actions_executed, status, error, executed_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         generateId("log"), workflow.id, contactId || null, dealId || null,
@@ -242,7 +242,7 @@ async function fireAutomationWorkflows(
 
       // Increment execution count
       await db.prepare(`
-        UPDATE crm_automation_workflows SET execution_count = execution_count + 1 WHERE id = ?
+        UPDATE xcut_crm_automation_workflows SET execution_count = execution_count + 1 WHERE id = ?
       `).bind(workflow.id).run();
     }
   } catch (err: any) {
@@ -283,7 +283,7 @@ crmRouter.get("/contacts", async (c) => {
     const min_score = c.req.query("min_score");
     const offset = (page - 1) * limit;
 
-    let query = `SELECT * FROM crm_contacts WHERE tenant_id = ? AND deleted_at IS NULL`;
+    let query = `SELECT * FROM xcut_crm_contacts WHERE tenant_id = ? AND deleted_at IS NULL`;
     const params: any[] = [tenantId];
 
     if (stage) {
@@ -305,7 +305,7 @@ crmRouter.get("/contacts", async (c) => {
 
     const result = await c.env.DB.prepare(query).bind(...params).all();
     const countResult = await c.env.DB.prepare(
-      `SELECT COUNT(*) as count FROM crm_contacts WHERE tenant_id = ? AND deleted_at IS NULL`
+      `SELECT COUNT(*) as count FROM xcut_crm_contacts WHERE tenant_id = ? AND deleted_at IS NULL`
     ).bind(tenantId).first();
     const total = (countResult?.count as number) || 0;
 
@@ -344,7 +344,7 @@ crmRouter.post("/contacts", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO crm_contacts (id, tenant_id, full_name, email, phone, company, stage, assigned_to, tags, notes, lead_score, created_at, updated_at)
+      INSERT INTO xcut_crm_contacts (id, tenant_id, full_name, email, phone, company, stage, assigned_to, tags, notes, lead_score, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
     `).bind(
       contactId, tenantId, data.full_name,
@@ -378,7 +378,7 @@ crmRouter.get("/contacts/:id", async (c) => {
 
     const id = c.req.param("id");
     const result = await c.env.DB.prepare(
-      `SELECT * FROM crm_contacts WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`
+      `SELECT * FROM xcut_crm_contacts WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`
     ).bind(id, tenantId).first();
 
     if (!result) return c.json({ error: "Contact not found" }, 404);
@@ -428,12 +428,12 @@ crmRouter.patch("/contacts/:id", async (c) => {
     params.push(now, id, tenantId);
 
     await c.env.DB.prepare(
-      `UPDATE crm_contacts SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`
+      `UPDATE xcut_crm_contacts SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`
     ).bind(...params).run();
 
     // CC-CRM-001: Recalculate score after update
     const updated = await c.env.DB.prepare(
-      `SELECT * FROM crm_contacts WHERE id = ? AND tenant_id = ?`
+      `SELECT * FROM xcut_crm_contacts WHERE id = ? AND tenant_id = ?`
     ).bind(id, tenantId).first() as any;
 
     let newScore = 0;
@@ -463,7 +463,7 @@ crmRouter.delete("/contacts/:id", async (c) => {
 
     const id = c.req.param("id");
     const result = await c.env.DB.prepare(
-      `UPDATE crm_contacts SET deleted_at = ? WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`
+      `UPDATE xcut_crm_contacts SET deleted_at = ? WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`
     ).bind(Date.now(), id, tenantId).run();
 
     if (!result.meta.changes) return c.json({ error: "Contact not found" }, 404);
@@ -485,7 +485,7 @@ crmRouter.post("/contacts/:id/rescore", async (c) => {
 
     const id = c.req.param("id");
     const contact = await c.env.DB.prepare(
-      `SELECT * FROM crm_contacts WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`
+      `SELECT * FROM xcut_crm_contacts WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`
     ).bind(id, tenantId).first() as any;
 
     if (!contact) return c.json({ error: "Contact not found" }, 404);
@@ -494,7 +494,7 @@ crmRouter.post("/contacts/:id/rescore", async (c) => {
 
     // Log the scoring event
     await c.env.DB.prepare(`
-      INSERT INTO crm_score_events (id, tenant_id, contact_id, score_delta, reason, score_after, created_at)
+      INSERT INTO xcut_crm_score_events (id, tenant_id, contact_id, score_delta, reason, score_after, created_at)
       VALUES (?, ?, ?, ?, 'Manual rescore', ?, ?)
     `).bind(generateId("se"), tenantId, id, 0, score, Date.now()).run();
 
@@ -511,7 +511,7 @@ crmRouter.get("/scoring-rules", async (c) => {
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
 
     const result = await c.env.DB.prepare(`
-      SELECT * FROM crm_scoring_rules
+      SELECT * FROM xcut_crm_scoring_rules
       WHERE tenant_id = ? OR tenant_id = 'default'
       ORDER BY tenant_id DESC, created_at DESC
     `).bind(tenantId).all();
@@ -535,7 +535,7 @@ crmRouter.post("/scoring-rules", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO crm_scoring_rules (id, tenant_id, name, attribute, operator, value, score_delta, is_active, created_at, updated_at)
+      INSERT INTO xcut_crm_scoring_rules (id, tenant_id, name, attribute, operator, value, score_delta, is_active, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(ruleId, tenantId, data.name, data.attribute, data.operator, data.value,
       data.score_delta, data.is_active ? 1 : 0, now, now).run();
@@ -570,7 +570,7 @@ crmRouter.patch("/scoring-rules/:id", async (c) => {
     params.push(Date.now(), id, tenantId);
 
     await c.env.DB.prepare(
-      `UPDATE crm_scoring_rules SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_crm_scoring_rules SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
     ).bind(...params).run();
 
     return c.json({ success: true });
@@ -587,7 +587,7 @@ crmRouter.delete("/scoring-rules/:id", async (c) => {
 
     const id = c.req.param("id");
     const result = await c.env.DB.prepare(
-      `DELETE FROM crm_scoring_rules WHERE id = ? AND tenant_id = ?`
+      `DELETE FROM xcut_crm_scoring_rules WHERE id = ? AND tenant_id = ?`
     ).bind(id, tenantId).run();
 
     if (!result.meta.changes) return c.json({ error: "Scoring rule not found" }, 404);
@@ -605,8 +605,8 @@ crmRouter.get("/contacts/:id/score-history", async (c) => {
 
     const id = c.req.param("id");
     const result = await c.env.DB.prepare(`
-      SELECT se.*, sr.name as rule_name FROM crm_score_events se
-      LEFT JOIN crm_scoring_rules sr ON se.rule_id = sr.id
+      SELECT se.*, sr.name as rule_name FROM xcut_crm_score_events se
+      LEFT JOIN xcut_crm_scoring_rules sr ON se.rule_id = sr.id
       WHERE se.contact_id = ? AND se.tenant_id = ?
       ORDER BY se.created_at DESC LIMIT 50
     `).bind(id, tenantId).all();
@@ -629,8 +629,8 @@ crmRouter.get("/automation/workflows", async (c) => {
 
     const result = await c.env.DB.prepare(`
       SELECT w.*, COUNT(a.id) as action_count
-      FROM crm_automation_workflows w
-      LEFT JOIN crm_automation_actions a ON a.workflow_id = w.id
+      FROM xcut_crm_automation_workflows w
+      LEFT JOIN xcut_crm_automation_actions a ON a.workflow_id = w.id
       WHERE w.tenant_id = ?
       GROUP BY w.id
       ORDER BY w.created_at DESC
@@ -661,7 +661,7 @@ crmRouter.post("/automation/workflows", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO crm_automation_workflows (id, tenant_id, name, description, trigger_event, trigger_config, is_active, created_at, updated_at)
+      INSERT INTO xcut_crm_automation_workflows (id, tenant_id, name, description, trigger_event, trigger_config, is_active, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       workflowId, tenantId, data.name, data.description || null,
@@ -703,7 +703,7 @@ crmRouter.patch("/automation/workflows/:id", async (c) => {
     params.push(Date.now(), id, tenantId);
 
     await c.env.DB.prepare(
-      `UPDATE crm_automation_workflows SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_crm_automation_workflows SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
     ).bind(...params).run();
 
     return c.json({ success: true });
@@ -720,7 +720,7 @@ crmRouter.delete("/automation/workflows/:id", async (c) => {
 
     const id = c.req.param("id");
     const result = await c.env.DB.prepare(
-      `DELETE FROM crm_automation_workflows WHERE id = ? AND tenant_id = ?`
+      `DELETE FROM xcut_crm_automation_workflows WHERE id = ? AND tenant_id = ?`
     ).bind(id, tenantId).run();
 
     if (!result.meta.changes) return c.json({ error: "Workflow not found" }, 404);
@@ -738,8 +738,8 @@ crmRouter.get("/automation/workflows/:id/actions", async (c) => {
 
     const workflowId = c.req.param("id");
     const result = await c.env.DB.prepare(`
-      SELECT a.* FROM crm_automation_actions a
-      JOIN crm_automation_workflows w ON a.workflow_id = w.id
+      SELECT a.* FROM xcut_crm_automation_actions a
+      JOIN xcut_crm_automation_workflows w ON a.workflow_id = w.id
       WHERE a.workflow_id = ? AND w.tenant_id = ?
       ORDER BY a.step_order ASC
     `).bind(workflowId, tenantId).all();
@@ -764,7 +764,7 @@ crmRouter.post("/automation/workflows/:id/actions", async (c) => {
 
     // Verify workflow belongs to tenant
     const wf = await c.env.DB.prepare(
-      `SELECT id FROM crm_automation_workflows WHERE id = ? AND tenant_id = ?`
+      `SELECT id FROM xcut_crm_automation_workflows WHERE id = ? AND tenant_id = ?`
     ).bind(workflowId, tenantId).first();
     if (!wf) return c.json({ error: "Workflow not found" }, 404);
 
@@ -773,7 +773,7 @@ crmRouter.post("/automation/workflows/:id/actions", async (c) => {
 
     const actionId = generateId("action");
     await c.env.DB.prepare(`
-      INSERT INTO crm_automation_actions (id, workflow_id, step_order, action_type, action_config, created_at)
+      INSERT INTO xcut_crm_automation_actions (id, workflow_id, step_order, action_type, action_config, created_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `).bind(actionId, workflowId, data.step_order, data.action_type, JSON.stringify(data.action_config), Date.now()).run();
 
@@ -794,12 +794,12 @@ crmRouter.delete("/automation/workflows/:id/actions/:actionId", async (c) => {
     const actionId = c.req.param("actionId");
 
     const wf = await c.env.DB.prepare(
-      `SELECT id FROM crm_automation_workflows WHERE id = ? AND tenant_id = ?`
+      `SELECT id FROM xcut_crm_automation_workflows WHERE id = ? AND tenant_id = ?`
     ).bind(workflowId, tenantId).first();
     if (!wf) return c.json({ error: "Workflow not found" }, 404);
 
     await c.env.DB.prepare(
-      `DELETE FROM crm_automation_actions WHERE id = ? AND workflow_id = ?`
+      `DELETE FROM xcut_crm_automation_actions WHERE id = ? AND workflow_id = ?`
     ).bind(actionId, workflowId).run();
 
     return c.json({ success: true });
@@ -818,8 +818,8 @@ crmRouter.get("/automation/logs", async (c) => {
     const limit = parseInt(c.req.query("limit") || "50");
 
     let query = `
-      SELECT l.*, w.name as workflow_name FROM crm_automation_logs l
-      JOIN crm_automation_workflows w ON l.workflow_id = w.id
+      SELECT l.*, w.name as workflow_name FROM xcut_crm_automation_logs l
+      JOIN xcut_crm_automation_workflows w ON l.workflow_id = w.id
       WHERE w.tenant_id = ?
     `;
     const params: any[] = [tenantId];
@@ -859,8 +859,8 @@ crmRouter.get("/deals", async (c) => {
 
     let query = `
       SELECT d.*, c.full_name as contact_name, c.email as contact_email, c.lead_score as contact_score
-      FROM crm_deals d
-      LEFT JOIN crm_contacts c ON d.contact_id = c.id
+      FROM xcut_crm_deals d
+      LEFT JOIN xcut_crm_contacts c ON d.contact_id = c.id
       WHERE d.tenant_id = ?
     `;
     const params: any[] = [tenantId];
@@ -898,7 +898,7 @@ crmRouter.post("/deals", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO crm_deals (id, tenant_id, contact_id, title, value_kobo, stage, probability, created_at, updated_at)
+      INSERT INTO xcut_crm_deals (id, tenant_id, contact_id, title, value_kobo, stage, probability, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(dealId, tenantId, data.contact_id, data.title, data.value_kobo, data.stage, data.probability, now, now).run();
 
@@ -939,7 +939,7 @@ crmRouter.patch("/deals/:id", async (c) => {
     params.push(now, id, tenantId);
 
     await c.env.DB.prepare(
-      `UPDATE crm_deals SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_crm_deals SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
     ).bind(...params).run();
 
     return c.json({ success: true });
@@ -956,13 +956,13 @@ crmRouter.get("/pipeline", async (c) => {
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
 
     const stagesResult = await c.env.DB.prepare(`
-      SELECT * FROM crm_pipeline_stages WHERE tenant_id = ? OR tenant_id = 'default'
+      SELECT * FROM xcut_crm_pipeline_stages WHERE tenant_id = ? OR tenant_id = 'default'
       ORDER BY position ASC
     `).bind(tenantId).all();
 
     const dealsResult = await c.env.DB.prepare(`
       SELECT stage, COUNT(*) as count, SUM(value_kobo) as total_value
-      FROM crm_deals WHERE tenant_id = ? AND stage != 'won' AND stage != 'lost'
+      FROM xcut_crm_deals WHERE tenant_id = ? AND stage != 'won' AND stage != 'lost'
       GROUP BY stage
     `).bind(tenantId).all();
 
@@ -1001,9 +1001,9 @@ crmRouter.get("/activities", async (c) => {
 
     let query = `
       SELECT a.*, c.full_name as contact_name, d.title as deal_title
-      FROM crm_activities a
-      LEFT JOIN crm_contacts c ON a.contact_id = c.id
-      LEFT JOIN crm_deals d ON a.deal_id = d.id
+      FROM xcut_crm_activities a
+      LEFT JOIN xcut_crm_contacts c ON a.contact_id = c.id
+      LEFT JOIN xcut_crm_deals d ON a.deal_id = d.id
       WHERE a.tenant_id = ?
     `;
     const params: any[] = [tenantId];
@@ -1044,7 +1044,7 @@ crmRouter.post("/activities", async (c) => {
     const createdBy = (c.get("jwtPayload") as any)?.userId || "system";
 
     await c.env.DB.prepare(`
-      INSERT INTO crm_activities (id, tenant_id, contact_id, deal_id, activity_type, subject, description, due_date, completed, created_by, created_at, updated_at)
+      INSERT INTO xcut_crm_activities (id, tenant_id, contact_id, deal_id, activity_type, subject, description, due_date, completed, created_by, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       activityId, tenantId, data.contact_id || null, data.deal_id || null,
@@ -1055,7 +1055,7 @@ crmRouter.post("/activities", async (c) => {
     // CC-CRM-001: Scoring bump for activity-based rules
     if (data.contact_id) {
       const contact = await c.env.DB.prepare(
-        `SELECT * FROM crm_contacts WHERE id = ? AND tenant_id = ?`
+        `SELECT * FROM xcut_crm_contacts WHERE id = ? AND tenant_id = ?`
       ).bind(data.contact_id, tenantId).first() as any;
 
       if (contact) {
@@ -1101,7 +1101,7 @@ crmRouter.patch("/activities/:id", async (c) => {
     params.push(now, id, tenantId);
 
     await c.env.DB.prepare(
-      `UPDATE crm_activities SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_crm_activities SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
     ).bind(...params).run();
 
     return c.json({ success: true });
@@ -1119,7 +1119,7 @@ crmRouter.delete("/activities/:id", async (c) => {
 
     const id = c.req.param("id");
     const result = await c.env.DB.prepare(
-      `DELETE FROM crm_activities WHERE id = ? AND tenant_id = ?`
+      `DELETE FROM xcut_crm_activities WHERE id = ? AND tenant_id = ?`
     ).bind(id, tenantId).run();
 
     if (!result.meta.changes) return c.json({ error: "Activity not found" }, 404);

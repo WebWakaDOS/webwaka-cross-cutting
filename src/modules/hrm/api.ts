@@ -229,7 +229,7 @@ hrmRouter.get("/employees", async (c) => {
     const search = c.req.query("search");
     const offset = (page - 1) * limit;
 
-    let query = `SELECT * FROM hrm_employees WHERE tenant_id = ?`;
+    let query = `SELECT * FROM xcut_hrm_employees WHERE tenant_id = ?`;
     const params: any[] = [tenantId];
 
     if (department) { query += ` AND department = ?`; params.push(department); }
@@ -245,7 +245,7 @@ hrmRouter.get("/employees", async (c) => {
 
     const result = await c.env.DB.prepare(query).bind(...params).all();
     const countResult = await c.env.DB.prepare(
-      `SELECT COUNT(*) as count FROM hrm_employees WHERE tenant_id = ?`
+      `SELECT COUNT(*) as count FROM xcut_hrm_employees WHERE tenant_id = ?`
     ).bind(tenantId).first();
     const total = (countResult?.count as number) || 0;
 
@@ -276,7 +276,7 @@ hrmRouter.post("/employees", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO hrm_employees (id, tenant_id, full_name, email, phone, department, role, employment_type, status, start_date, salary_kobo, created_at, updated_at)
+      INSERT INTO xcut_hrm_employees (id, tenant_id, full_name, email, phone, department, role, employment_type, status, start_date, salary_kobo, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       employeeId, tenantId, data.full_name, data.email || null, data.phone || null,
@@ -299,7 +299,7 @@ hrmRouter.get("/employees/:id", async (c) => {
 
     const id = c.req.param("id");
     const result = await c.env.DB.prepare(
-      `SELECT * FROM hrm_employees WHERE id = ? AND tenant_id = ?`
+      `SELECT * FROM xcut_hrm_employees WHERE id = ? AND tenant_id = ?`
     ).bind(id, tenantId).first();
 
     if (!result) return c.json({ error: "Employee not found" }, 404);
@@ -350,7 +350,7 @@ hrmRouter.patch("/employees/:id", async (c) => {
     params.push(now, id, tenantId);
 
     await c.env.DB.prepare(
-      `UPDATE hrm_employees SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_hrm_employees SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
     ).bind(...params).run();
 
     return c.json({ success: true });
@@ -368,7 +368,7 @@ hrmRouter.delete("/employees/:id", async (c) => {
 
     const id = c.req.param("id");
     const result = await c.env.DB.prepare(
-      `UPDATE hrm_employees SET status = 'terminated', updated_at = ? WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_hrm_employees SET status = 'terminated', updated_at = ? WHERE id = ? AND tenant_id = ?`
     ).bind(Date.now(), id, tenantId).run();
 
     if (!result.meta.changes) return c.json({ error: "Employee not found" }, 404);
@@ -394,8 +394,8 @@ hrmRouter.get("/leave", async (c) => {
 
     let query = `
       SELECT lr.*, e.full_name as employee_name
-      FROM hrm_leave_requests lr
-      LEFT JOIN hrm_employees e ON lr.employee_id = e.id
+      FROM xcut_hrm_leave_requests lr
+      LEFT JOIN xcut_hrm_employees e ON lr.employee_id = e.id
       WHERE lr.tenant_id = ?
     `;
     const params: any[] = [tenantId];
@@ -432,7 +432,7 @@ hrmRouter.post("/leave", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO hrm_leave_requests (id, tenant_id, employee_id, leave_type, start_date, end_date, status, reason, created_at)
+      INSERT INTO xcut_hrm_leave_requests (id, tenant_id, employee_id, leave_type, start_date, end_date, status, reason, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(requestId, tenantId, data.employee_id, data.leave_type, data.start_date, data.end_date, "pending", data.reason || null, now).run();
 
@@ -463,7 +463,7 @@ hrmRouter.patch("/leave/:id", async (c) => {
 
     params.push(id, tenantId);
     await c.env.DB.prepare(
-      `UPDATE hrm_leave_requests SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_hrm_leave_requests SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
     ).bind(...params).run();
 
     return c.json({ success: true });
@@ -484,7 +484,7 @@ hrmRouter.get("/payroll/config", async (c) => {
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
 
     let config = await c.env.DB.prepare(
-      `SELECT * FROM hrm_payroll_configs WHERE tenant_id = ?`
+      `SELECT * FROM xcut_hrm_payroll_configs WHERE tenant_id = ?`
     ).bind(tenantId).first() as any;
 
     if (!config) {
@@ -523,7 +523,7 @@ hrmRouter.put("/payroll/config", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO hrm_payroll_configs (tenant_id, pension_rate_pct, nhf_rate_pct, employer_pension_pct, pay_frequency, paye_enabled, updated_at)
+      INSERT INTO xcut_hrm_payroll_configs (tenant_id, pension_rate_pct, nhf_rate_pct, employer_pension_pct, pay_frequency, paye_enabled, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(tenant_id) DO UPDATE SET
         pension_rate_pct = excluded.pension_rate_pct,
@@ -552,7 +552,7 @@ hrmRouter.get("/payroll", async (c) => {
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
 
     const result = await c.env.DB.prepare(
-      `SELECT * FROM hrm_payroll_runs WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 20`
+      `SELECT * FROM xcut_hrm_payroll_runs WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 20`
     ).bind(tenantId).all();
 
     const runs = (result.results as any[]).map((r: any) => ({
@@ -586,7 +586,7 @@ hrmRouter.post("/payroll/run", async (c) => {
 
     // Get payroll config
     let configRow = await c.env.DB.prepare(
-      `SELECT * FROM hrm_payroll_configs WHERE tenant_id = ?`
+      `SELECT * FROM xcut_hrm_payroll_configs WHERE tenant_id = ?`
     ).bind(tenantId).first() as any;
 
     const config = configRow || {
@@ -595,7 +595,7 @@ hrmRouter.post("/payroll/run", async (c) => {
     };
 
     // Get employees to process
-    let employeeQuery = `SELECT * FROM hrm_employees WHERE tenant_id = ? AND status = 'active'`;
+    let employeeQuery = `SELECT * FROM xcut_hrm_employees WHERE tenant_id = ? AND status = 'active'`;
     const employeeParams: any[] = [tenantId];
 
     if (data.employee_ids && data.employee_ids.length > 0) {
@@ -616,7 +616,7 @@ hrmRouter.post("/payroll/run", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO hrm_payroll_runs (id, tenant_id, period_label, period_start, period_end, status, employee_count, processed_by, created_at)
+      INSERT INTO xcut_hrm_payroll_runs (id, tenant_id, period_label, period_start, period_end, status, employee_count, processed_by, created_at)
       VALUES (?, ?, ?, ?, ?, 'processing', ?, ?, ?)
     `).bind(runId, tenantId, data.period_label, data.period_start, data.period_end, employees.length, processedBy, now).run();
 
@@ -635,7 +635,7 @@ hrmRouter.post("/payroll/run", async (c) => {
       const slipId = generateId("slip");
       slipInserts.push(
         c.env.DB.prepare(`
-          INSERT INTO hrm_pay_slips (id, tenant_id, payroll_run_id, employee_id, period_label,
+          INSERT INTO xcut_hrm_pay_slips (id, tenant_id, payroll_run_id, employee_id, period_label,
             gross_kobo, basic_kobo, transport_allowance_kobo, housing_allowance_kobo,
             pension_employee_kobo, pension_employer_kobo, nhf_kobo, paye_tax_kobo,
             total_deductions_kobo, net_kobo, bank_account, bank_name, created_at)
@@ -654,7 +654,7 @@ hrmRouter.post("/payroll/run", async (c) => {
 
     // Update payroll run with totals
     await c.env.DB.prepare(`
-      UPDATE hrm_payroll_runs SET
+      UPDATE xcut_hrm_payroll_runs SET
         status = 'completed', total_gross_kobo = ?, total_net_kobo = ?,
         total_deductions_kobo = ?, total_tax_kobo = ?, processed_at = ?
       WHERE id = ?
@@ -689,8 +689,8 @@ hrmRouter.get("/payroll/:runId/slips", async (c) => {
     const runId = c.req.param("runId");
     const result = await c.env.DB.prepare(`
       SELECT ps.*, e.full_name as employee_name, e.email as employee_email, e.department, e.role
-      FROM hrm_pay_slips ps
-      JOIN hrm_employees e ON ps.employee_id = e.id
+      FROM xcut_hrm_pay_slips ps
+      JOIN xcut_hrm_employees e ON ps.employee_id = e.id
       WHERE ps.payroll_run_id = ? AND ps.tenant_id = ?
       ORDER BY e.full_name ASC
     `).bind(runId, tenantId).all();
@@ -732,8 +732,8 @@ hrmRouter.get("/payroll/employee/:employeeId/slips", async (c) => {
     const employeeId = c.req.param("employeeId");
     const result = await c.env.DB.prepare(`
       SELECT ps.*, pr.period_start, pr.period_end, pr.status as run_status
-      FROM hrm_pay_slips ps
-      JOIN hrm_payroll_runs pr ON ps.payroll_run_id = pr.id
+      FROM xcut_hrm_pay_slips ps
+      JOIN xcut_hrm_payroll_runs pr ON ps.payroll_run_id = pr.id
       WHERE ps.employee_id = ? AND ps.tenant_id = ?
       ORDER BY ps.created_at DESC
     `).bind(employeeId, tenantId).all();
@@ -764,7 +764,7 @@ hrmRouter.post("/payroll/preview", async (c) => {
     const salary_kobo = z.number().int().min(0).parse(body.salary_kobo);
 
     let configRow = await c.env.DB.prepare(
-      `SELECT * FROM hrm_payroll_configs WHERE tenant_id = ?`
+      `SELECT * FROM xcut_hrm_payroll_configs WHERE tenant_id = ?`
     ).bind(tenantId).first() as any;
 
     const config = configRow || {
@@ -805,8 +805,8 @@ hrmRouter.get("/goals", async (c) => {
 
     let query = `
       SELECT g.*, e.full_name as employee_name
-      FROM hrm_goals g
-      JOIN hrm_employees e ON g.employee_id = e.id
+      FROM xcut_hrm_goals g
+      JOIN xcut_hrm_employees e ON g.employee_id = e.id
       WHERE g.tenant_id = ?
     `;
     const params: any[] = [tenantId];
@@ -836,7 +836,7 @@ hrmRouter.post("/goals", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO hrm_goals (id, tenant_id, employee_id, title, description, target, due_date, status, progress, created_by, created_at, updated_at)
+      INSERT INTO xcut_hrm_goals (id, tenant_id, employee_id, title, description, target, due_date, status, progress, created_by, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 0, ?, ?, ?)
     `).bind(goalId, tenantId, data.employee_id, data.title, data.description || null,
       data.target || null, data.due_date || null, createdBy, now, now).run();
@@ -873,7 +873,7 @@ hrmRouter.patch("/goals/:id", async (c) => {
     params.push(Date.now(), id, tenantId);
 
     await c.env.DB.prepare(
-      `UPDATE hrm_goals SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_hrm_goals SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
     ).bind(...params).run();
 
     return c.json({ success: true });
@@ -891,7 +891,7 @@ hrmRouter.delete("/goals/:id", async (c) => {
 
     const id = c.req.param("id");
     await c.env.DB.prepare(
-      `UPDATE hrm_goals SET status = 'cancelled', updated_at = ? WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_hrm_goals SET status = 'cancelled', updated_at = ? WHERE id = ? AND tenant_id = ?`
     ).bind(Date.now(), id, tenantId).run();
 
     return c.json({ success: true });
@@ -911,7 +911,7 @@ hrmRouter.get("/reviews/cycles", async (c) => {
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
 
     const result = await c.env.DB.prepare(
-      `SELECT * FROM hrm_review_cycles WHERE tenant_id = ? ORDER BY start_date DESC`
+      `SELECT * FROM xcut_hrm_review_cycles WHERE tenant_id = ? ORDER BY start_date DESC`
     ).bind(tenantId).all();
 
     return c.json({ cycles: result.results });
@@ -932,7 +932,7 @@ hrmRouter.post("/reviews/cycles", async (c) => {
     const createdBy = (c.get("jwtPayload") as any)?.userId || "system";
 
     await c.env.DB.prepare(`
-      INSERT INTO hrm_review_cycles (id, tenant_id, name, period_type, start_date, end_date, status, created_by, created_at)
+      INSERT INTO xcut_hrm_review_cycles (id, tenant_id, name, period_type, start_date, end_date, status, created_by, created_at)
       VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
     `).bind(cycleId, tenantId, data.name, data.period_type, data.start_date, data.end_date, createdBy, Date.now()).run();
 
@@ -954,7 +954,7 @@ hrmRouter.patch("/reviews/cycles/:id", async (c) => {
     const status = z.enum(["active", "completed", "cancelled"]).parse(body.status);
 
     await c.env.DB.prepare(
-      `UPDATE hrm_review_cycles SET status = ? WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_hrm_review_cycles SET status = ? WHERE id = ? AND tenant_id = ?`
     ).bind(status, id, tenantId).run();
 
     return c.json({ success: true });
@@ -976,9 +976,9 @@ hrmRouter.get("/reviews", async (c) => {
 
     let query = `
       SELECT r.*, e.full_name as employee_name, rc.name as cycle_name
-      FROM hrm_reviews r
-      JOIN hrm_employees e ON r.employee_id = e.id
-      JOIN hrm_review_cycles rc ON r.cycle_id = rc.id
+      FROM xcut_hrm_reviews r
+      JOIN xcut_hrm_employees e ON r.employee_id = e.id
+      JOIN xcut_hrm_review_cycles rc ON r.cycle_id = rc.id
       WHERE r.tenant_id = ?
     `;
     const params: any[] = [tenantId];
@@ -1009,7 +1009,7 @@ hrmRouter.post("/reviews", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO hrm_reviews (id, tenant_id, cycle_id, employee_id, reviewer_id, review_type, rating, strengths, improvements, comments, status, created_at, updated_at)
+      INSERT INTO xcut_hrm_reviews (id, tenant_id, cycle_id, employee_id, reviewer_id, review_type, rating, strengths, improvements, comments, status, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
     `).bind(
       reviewId, tenantId, data.cycle_id, data.employee_id, reviewerId,
@@ -1056,7 +1056,7 @@ hrmRouter.patch("/reviews/:id", async (c) => {
     params.push(now, id, tenantId);
 
     await c.env.DB.prepare(
-      `UPDATE hrm_reviews SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_hrm_reviews SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
     ).bind(...params).run();
 
     return c.json({ success: true });
@@ -1078,9 +1078,9 @@ hrmRouter.get("/feedback", async (c) => {
 
     let query = `
       SELECT f.*, giver.full_name as from_name, receiver.full_name as to_name
-      FROM hrm_feedback f
-      JOIN hrm_employees giver ON f.from_employee_id = giver.id
-      JOIN hrm_employees receiver ON f.to_employee_id = receiver.id
+      FROM xcut_hrm_feedback f
+      JOIN xcut_hrm_employees giver ON f.from_employee_id = giver.id
+      JOIN xcut_hrm_employees receiver ON f.to_employee_id = receiver.id
       WHERE f.tenant_id = ?
     `;
     const params: any[] = [tenantId];
@@ -1117,7 +1117,7 @@ hrmRouter.post("/feedback", async (c) => {
     const feedbackId = generateId("fb");
 
     await c.env.DB.prepare(`
-      INSERT INTO hrm_feedback (id, tenant_id, from_employee_id, to_employee_id, goal_id, message, feedback_type, is_private, created_at)
+      INSERT INTO xcut_hrm_feedback (id, tenant_id, from_employee_id, to_employee_id, goal_id, message, feedback_type, is_private, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       feedbackId, tenantId, fromEmployeeId, data.to_employee_id, data.goal_id || null,

@@ -2,26 +2,26 @@
 -- Epic: XCT-1 (CRM), XCT-2 (HRM), XCT-3 (Ticketing), XCT-4 (Chat)
 PRAGMA journal_mode = WAL;
 
-CREATE TABLE IF NOT EXISTS crm_contacts (
+CREATE TABLE IF NOT EXISTS xcut_crm_contacts (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, full_name TEXT NOT NULL,
   email TEXT, phone TEXT, company TEXT, stage TEXT NOT NULL DEFAULT 'lead',
   assigned_to TEXT, tags TEXT, notes TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000), deleted_at INTEGER
 );
-CREATE INDEX IF NOT EXISTS idx_crm_contacts_tenant ON crm_contacts(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_crm_contacts_stage ON crm_contacts(tenant_id,stage);
+CREATE INDEX IF NOT EXISTS idx_crm_contacts_tenant ON xcut_crm_contacts(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_crm_contacts_stage ON xcut_crm_contacts(tenant_id,stage);
 
-CREATE TABLE IF NOT EXISTS crm_deals (
-  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, contact_id TEXT REFERENCES crm_contacts(id),
+CREATE TABLE IF NOT EXISTS xcut_crm_deals (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, contact_id TEXT REFERENCES xcut_crm_contacts(id),
   title TEXT NOT NULL, value_kobo INTEGER NOT NULL DEFAULT 0,
   stage TEXT NOT NULL DEFAULT 'new', probability INTEGER NOT NULL DEFAULT 0,
   closed_at INTEGER, created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_crm_deals_tenant ON crm_deals(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_crm_deals_tenant ON xcut_crm_deals(tenant_id);
 
-CREATE TABLE IF NOT EXISTS hrm_employees (
+CREATE TABLE IF NOT EXISTS xcut_hrm_employees (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, full_name TEXT NOT NULL,
   email TEXT, phone TEXT, department TEXT, role TEXT,
   employment_type TEXT NOT NULL DEFAULT 'full_time',
@@ -30,18 +30,18 @@ CREATE TABLE IF NOT EXISTS hrm_employees (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_hrm_employees_tenant ON hrm_employees(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_hrm_employees_tenant ON xcut_hrm_employees(tenant_id);
 
-CREATE TABLE IF NOT EXISTS hrm_leave_requests (
+CREATE TABLE IF NOT EXISTS xcut_hrm_leave_requests (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL,
-  employee_id TEXT NOT NULL REFERENCES hrm_employees(id),
+  employee_id TEXT NOT NULL REFERENCES xcut_hrm_employees(id),
   leave_type TEXT NOT NULL, start_date TEXT NOT NULL, end_date TEXT NOT NULL,
   days INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'pending',
   approved_by TEXT, reason TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
 
-CREATE TABLE IF NOT EXISTS tickets (
+CREATE TABLE IF NOT EXISTS xcut_tickets (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL,
   subject TEXT NOT NULL, body TEXT,
   status TEXT NOT NULL DEFAULT 'open', priority TEXT NOT NULL DEFAULT 'medium',
@@ -50,17 +50,17 @@ CREATE TABLE IF NOT EXISTS tickets (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_tickets_tenant_status ON tickets(tenant_id,status);
-CREATE INDEX IF NOT EXISTS idx_tickets_assigned ON tickets(tenant_id,assigned_to);
+CREATE INDEX IF NOT EXISTS idx_tickets_tenant_status ON xcut_tickets(tenant_id,status);
+CREATE INDEX IF NOT EXISTS idx_tickets_assigned ON xcut_tickets(tenant_id,assigned_to);
 
-CREATE TABLE IF NOT EXISTS ticket_comments (
-  id TEXT PRIMARY KEY, ticket_id TEXT NOT NULL REFERENCES tickets(id),
+CREATE TABLE IF NOT EXISTS xcut_ticket_comments (
+  id TEXT PRIMARY KEY, ticket_id TEXT NOT NULL REFERENCES xcut_tickets(id),
   author_id TEXT NOT NULL, body TEXT NOT NULL,
   is_internal INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
 
-CREATE TABLE IF NOT EXISTS chat_conversations (
+CREATE TABLE IF NOT EXISTS xcut_chat_conversations (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL,
   channel TEXT NOT NULL DEFAULT 'internal', status TEXT NOT NULL DEFAULT 'open',
   participants TEXT,
@@ -68,10 +68,10 @@ CREATE TABLE IF NOT EXISTS chat_conversations (
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
 
-CREATE TABLE IF NOT EXISTS chat_messages (
-  id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES chat_conversations(id),
+CREATE TABLE IF NOT EXISTS xcut_chat_messages (
+  id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES xcut_chat_conversations(id),
   sender_id TEXT NOT NULL, body TEXT NOT NULL,
   message_type TEXT NOT NULL DEFAULT 'text', read_by TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_chat_messages_conv ON chat_messages(conversation_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_conv ON xcut_chat_messages(conversation_id,created_at);

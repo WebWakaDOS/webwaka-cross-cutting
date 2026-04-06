@@ -55,11 +55,11 @@ const ReportDefinitionSchema = z.object({
   name: z.string().min(1).max(300),
   description: z.string().max(1000).optional(),
   data_source: z.enum([
-    "crm_contacts", "crm_deals", "crm_activities",
-    "tickets", "ticket_comments",
-    "hrm_employees", "hrm_pay_slips", "hrm_goals", "hrm_reviews",
-    "chat_messages", "analytics_events",
-    "analytics_daily_metrics",
+    "xcut_crm_contacts", "xcut_crm_deals", "xcut_crm_activities",
+    "xcut_tickets", "xcut_ticket_comments",
+    "xcut_hrm_employees", "xcut_hrm_pay_slips", "xcut_hrm_goals", "xcut_hrm_reviews",
+    "xcut_chat_messages", "xcut_analytics_events",
+    "xcut_analytics_daily_metrics",
   ]),
   metrics: z.array(MetricSchema).min(1),
   dimensions: z.array(DimensionSchema).default([]),
@@ -114,18 +114,18 @@ function koboToNaira(kobo: number): number {
 
 // CC-ANL-001: Safe field name allowlist per data source
 const ALLOWED_FIELDS: Record<string, string[]> = {
-  crm_contacts: ["id", "full_name", "email", "company", "stage", "assigned_to", "lead_score", "created_at", "updated_at"],
-  crm_deals: ["id", "contact_id", "title", "value_kobo", "stage", "probability", "created_at"],
-  crm_activities: ["id", "contact_id", "deal_id", "activity_type", "subject", "completed", "created_at"],
-  tickets: ["id", "subject", "status", "priority", "category", "assigned_to", "source", "sla_status", "created_at", "resolved_at"],
-  ticket_comments: ["id", "ticket_id", "author_id", "is_internal", "created_at"],
-  hrm_employees: ["id", "full_name", "department", "role", "employment_type", "status", "salary_kobo", "created_at"],
-  hrm_pay_slips: ["id", "employee_id", "period_label", "gross_kobo", "net_kobo", "paye_tax_kobo", "pension_employee_kobo", "created_at"],
-  hrm_goals: ["id", "employee_id", "title", "status", "progress", "due_date", "created_at"],
-  hrm_reviews: ["id", "cycle_id", "employee_id", "review_type", "rating", "status", "created_at"],
-  chat_messages: ["id", "conversation_id", "sender_id", "message_type", "created_at"],
-  analytics_events: ["id", "event_type", "vertical", "created_at"],
-  analytics_daily_metrics: ["id", "vertical", "metric_date", "revenue_kobo", "active_users", "new_users", "total_actions", "created_at"],
+  xcut_crm_contacts: ["id", "full_name", "email", "company", "stage", "assigned_to", "lead_score", "created_at", "updated_at"],
+  xcut_crm_deals: ["id", "contact_id", "title", "value_kobo", "stage", "probability", "created_at"],
+  xcut_crm_activities: ["id", "contact_id", "deal_id", "activity_type", "subject", "completed", "created_at"],
+  xcut_tickets: ["id", "subject", "status", "priority", "category", "assigned_to", "source", "sla_status", "created_at", "resolved_at"],
+  xcut_ticket_comments: ["id", "ticket_id", "author_id", "is_internal", "created_at"],
+  xcut_hrm_employees: ["id", "full_name", "department", "role", "employment_type", "status", "salary_kobo", "created_at"],
+  xcut_hrm_pay_slips: ["id", "employee_id", "period_label", "gross_kobo", "net_kobo", "paye_tax_kobo", "pension_employee_kobo", "created_at"],
+  xcut_hrm_goals: ["id", "employee_id", "title", "status", "progress", "due_date", "created_at"],
+  xcut_hrm_reviews: ["id", "cycle_id", "employee_id", "review_type", "rating", "status", "created_at"],
+  xcut_chat_messages: ["id", "conversation_id", "sender_id", "message_type", "created_at"],
+  xcut_analytics_events: ["id", "event_type", "vertical", "created_at"],
+  xcut_analytics_daily_metrics: ["id", "vertical", "metric_date", "revenue_kobo", "active_users", "new_users", "total_actions", "created_at"],
 };
 
 function sanitizeField(dataSource: string, field: string): string {
@@ -264,10 +264,10 @@ async function gatherMetricData(
   switch (metricName) {
     case "lead_conversion_rate": {
       const total = await db.prepare(
-        `SELECT COUNT(*) as count FROM crm_contacts WHERE tenant_id = ?`
+        `SELECT COUNT(*) as count FROM xcut_crm_contacts WHERE tenant_id = ?`
       ).bind(tenantId).first() as any;
       const won = await db.prepare(
-        `SELECT COUNT(*) as count FROM crm_contacts WHERE tenant_id = ? AND stage = 'won'`
+        `SELECT COUNT(*) as count FROM xcut_crm_contacts WHERE tenant_id = ? AND stage = 'won'`
       ).bind(tenantId).first() as any;
       const totalCount = total?.count || 0;
       const wonCount = won?.count || 0;
@@ -277,17 +277,17 @@ async function gatherMetricData(
     case "ticket_resolution_time": {
       const result = await db.prepare(`
         SELECT AVG((resolved_at - created_at) / 60000.0) as avg_minutes
-        FROM tickets
+        FROM xcut_tickets
         WHERE tenant_id = ? AND resolved_at IS NOT NULL
       `).bind(tenantId).first() as any;
       return { avg_resolution_minutes: result?.avg_minutes || 0 };
     }
     case "employee_churn_risk": {
       const terminated = await db.prepare(
-        `SELECT COUNT(*) as count FROM hrm_employees WHERE tenant_id = ? AND status = 'terminated'`
+        `SELECT COUNT(*) as count FROM xcut_hrm_employees WHERE tenant_id = ? AND status = 'terminated'`
       ).bind(tenantId).first() as any;
       const total = await db.prepare(
-        `SELECT COUNT(*) as count FROM hrm_employees WHERE tenant_id = ?`
+        `SELECT COUNT(*) as count FROM xcut_hrm_employees WHERE tenant_id = ?`
       ).bind(tenantId).first() as any;
       const terminatedCount = terminated?.count || 0;
       const totalCount = total?.count || 0;
@@ -298,7 +298,7 @@ async function gatherMetricData(
       const result = await db.prepare(`
         SELECT SUM(value_kobo) as total_pipeline_kobo, COUNT(*) as deal_count,
                AVG(probability) as avg_probability
-        FROM crm_deals WHERE tenant_id = ? AND stage NOT IN ('won', 'lost')
+        FROM xcut_crm_deals WHERE tenant_id = ? AND stage NOT IN ('won', 'lost')
       `).bind(tenantId).first() as any;
       return {
         pipeline_kobo: result?.total_pipeline_kobo || 0,
@@ -312,7 +312,7 @@ async function gatherMetricData(
     case "deal_win_probability": {
       const result = await db.prepare(`
         SELECT stage, COUNT(*) as count, AVG(probability) as avg_prob
-        FROM crm_deals WHERE tenant_id = ?
+        FROM xcut_crm_deals WHERE tenant_id = ?
         GROUP BY stage
       `).bind(tenantId).all();
       return { by_stage: result.results };
@@ -446,7 +446,7 @@ analyticsRouter.get("/summary", async (c) => {
         SUM(new_users) as total_new_users,
         SUM(total_actions) as total_actions,
         SUM(failed_actions) as total_failed_actions
-      FROM analytics_daily_metrics
+      FROM xcut_analytics_daily_metrics
       WHERE tenant_id = ? AND created_at >= ? ${dateFilter}
       GROUP BY vertical ORDER BY total_revenue_kobo DESC
     `).bind(tenantId, start).all();
@@ -497,7 +497,7 @@ analyticsRouter.get("/revenue", async (c) => {
     const dailyResult = await c.env.DB.prepare(`
       SELECT DATE(created_at/1000, 'unixepoch') as date, vertical,
         SUM(revenue_kobo) as revenue_kobo, SUM(revenue_transactions) as transactions
-      FROM analytics_daily_metrics
+      FROM xcut_analytics_daily_metrics
       WHERE tenant_id = ? AND created_at >= ? ${dateFilter}
       GROUP BY date, vertical ORDER BY date DESC, revenue_kobo DESC
     `).bind(tenantId, start).all();
@@ -505,7 +505,7 @@ analyticsRouter.get("/revenue", async (c) => {
     const monthlyResult = await c.env.DB.prepare(`
       SELECT metric_month, SUM(total_revenue_kobo) as revenue_kobo,
         SUM(total_transactions) as transactions, AVG(revenue_growth_rate) as avg_growth_rate
-      FROM analytics_monthly_aggregates WHERE tenant_id = ?
+      FROM xcut_analytics_monthly_aggregates WHERE tenant_id = ?
       GROUP BY metric_month ORDER BY metric_month DESC LIMIT 6
     `).bind(tenantId).all();
 
@@ -532,7 +532,7 @@ analyticsRouter.get("/growth", async (c) => {
     const result = await c.env.DB.prepare(`
       SELECT DATE(created_at/1000, 'unixepoch') as date, vertical,
         SUM(active_users) as active_users, SUM(new_users) as new_users
-      FROM analytics_daily_metrics
+      FROM xcut_analytics_daily_metrics
       WHERE tenant_id = ? AND created_at >= ? ${dateFilter}
       GROUP BY date, vertical ORDER BY date DESC, active_users DESC
     `).bind(tenantId, start).all();
@@ -567,7 +567,7 @@ analyticsRouter.post("/events", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO analytics_events (id, tenant_id, event_type, vertical, event_data, created_at)
+      INSERT INTO xcut_analytics_events (id, tenant_id, event_type, vertical, event_data, created_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `).bind(eventId, tenantId, event.event_type, event.vertical, JSON.stringify(event.event_data), now).run();
 
@@ -586,7 +586,7 @@ analyticsRouter.get("/insights", async (c) => {
 
     const result = await c.env.DB.prepare(`
       SELECT id, tenant_id, insight_type, title, description, confidence, action_items, created_at, expires_at
-      FROM analytics_insights
+      FROM xcut_analytics_insights
       WHERE tenant_id = ? AND (expires_at IS NULL OR expires_at > ?)
       ORDER BY confidence DESC, created_at DESC LIMIT 10
     `).bind(tenantId, Date.now()).all();
@@ -619,8 +619,8 @@ analyticsRouter.get("/reports", async (c) => {
 
     const result = await c.env.DB.prepare(`
       SELECT r.*, COUNT(rr.id) as run_count
-      FROM analytics_report_definitions r
-      LEFT JOIN analytics_report_runs rr ON rr.report_id = r.id
+      FROM xcut_analytics_report_definitions r
+      LEFT JOIN xcut_analytics_report_runs rr ON rr.report_id = r.id
       WHERE r.tenant_id = ? OR r.is_shared = 1
       GROUP BY r.id
       ORDER BY r.created_at DESC
@@ -665,7 +665,7 @@ analyticsRouter.post("/reports", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO analytics_report_definitions
+      INSERT INTO xcut_analytics_report_definitions
         (id, tenant_id, name, description, data_source, metrics, dimensions, filters,
          sort_by, sort_dir, limit_rows, visualization_type, is_shared, created_by, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -692,7 +692,7 @@ analyticsRouter.get("/reports/:id", async (c) => {
 
     const id = c.req.param("id");
     const report = await c.env.DB.prepare(`
-      SELECT * FROM analytics_report_definitions WHERE id = ? AND (tenant_id = ? OR is_shared = 1)
+      SELECT * FROM xcut_analytics_report_definitions WHERE id = ? AND (tenant_id = ? OR is_shared = 1)
     `).bind(id, tenantId).first() as any;
 
     if (!report) return c.json({ error: "Report not found" }, 404);
@@ -742,7 +742,7 @@ analyticsRouter.patch("/reports/:id", async (c) => {
     params.push(now, id, tenantId);
 
     await c.env.DB.prepare(
-      `UPDATE analytics_report_definitions SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_analytics_report_definitions SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
     ).bind(...params).run();
 
     return c.json({ success: true });
@@ -759,7 +759,7 @@ analyticsRouter.delete("/reports/:id", async (c) => {
 
     const id = c.req.param("id");
     const result = await c.env.DB.prepare(
-      `DELETE FROM analytics_report_definitions WHERE id = ? AND tenant_id = ?`
+      `DELETE FROM xcut_analytics_report_definitions WHERE id = ? AND tenant_id = ?`
     ).bind(id, tenantId).run();
 
     if (!result.meta.changes) return c.json({ error: "Report not found" }, 404);
@@ -780,7 +780,7 @@ analyticsRouter.post("/reports/:id/run", async (c) => {
     const ranBy = (c.get("jwtPayload") as any)?.userId || "system";
 
     const reportRow = await c.env.DB.prepare(`
-      SELECT * FROM analytics_report_definitions WHERE id = ? AND (tenant_id = ? OR is_shared = 1)
+      SELECT * FROM xcut_analytics_report_definitions WHERE id = ? AND (tenant_id = ? OR is_shared = 1)
     `).bind(id, tenantId).first() as any;
 
     if (!reportRow) return c.json({ error: "Report not found" }, 404);
@@ -798,7 +798,7 @@ analyticsRouter.post("/reports/:id/run", async (c) => {
     const startedAt = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO analytics_report_runs (id, report_id, tenant_id, status, ran_by, started_at)
+      INSERT INTO xcut_analytics_report_runs (id, report_id, tenant_id, status, ran_by, started_at)
       VALUES (?, ?, ?, 'running', ?, ?)
     `).bind(runId, id, tenantId, ranBy, startedAt).run();
 
@@ -818,7 +818,7 @@ analyticsRouter.post("/reports/:id/run", async (c) => {
 
     const now = Date.now();
     await c.env.DB.prepare(`
-      UPDATE analytics_report_runs SET status = ?, row_count = ?, result_preview = ?, error = ?, completed_at = ?
+      UPDATE xcut_analytics_report_runs SET status = ?, row_count = ?, result_preview = ?, error = ?, completed_at = ?
       WHERE id = ?
     `).bind(
       runStatus, rowCount,
@@ -852,7 +852,7 @@ analyticsRouter.get("/reports/:id/runs", async (c) => {
     const id = c.req.param("id");
     const result = await c.env.DB.prepare(`
       SELECT id, status, row_count, ran_by, started_at, completed_at, error
-      FROM analytics_report_runs
+      FROM xcut_analytics_report_runs
       WHERE report_id = ? AND tenant_id = ?
       ORDER BY started_at DESC LIMIT 20
     `).bind(id, tenantId).all();
@@ -897,7 +897,7 @@ analyticsRouter.post("/predict", async (c) => {
     // Check for cached prediction (unless force_refresh)
     if (!request.force_refresh) {
       const cached = await c.env.DB.prepare(`
-        SELECT * FROM analytics_predictions
+        SELECT * FROM xcut_analytics_predictions
         WHERE tenant_id = ? AND metric_name = ? AND expires_at > ?
         ORDER BY created_at DESC LIMIT 1
       `).bind(tenantId, request.metric_name, now).first() as any;
@@ -947,7 +947,7 @@ analyticsRouter.post("/predict", async (c) => {
     const expiresAt = now + 24 * 60 * 60 * 1000;  // 24 hours TTL
 
     await c.env.DB.prepare(`
-      INSERT INTO analytics_predictions
+      INSERT INTO xcut_analytics_predictions
         (id, tenant_id, metric_name, prediction_type, current_value, predicted_value,
          confidence, horizon_days, model_version, supporting_data, ai_provider, created_at, expires_at)
       VALUES (?, ?, ?, 'forecast', ?, ?, ?, ?, 'v1', ?, 'webwaka-ai-platform', ?, ?)
@@ -988,7 +988,7 @@ analyticsRouter.get("/predictions", async (c) => {
     const metric = c.req.query("metric_name");
     const now = Date.now();
 
-    let query = `SELECT * FROM analytics_predictions WHERE tenant_id = ? AND expires_at > ?`;
+    let query = `SELECT * FROM xcut_analytics_predictions WHERE tenant_id = ? AND expires_at > ?`;
     const params: any[] = [tenantId, now];
 
     if (metric) { query += ` AND metric_name = ?`; params.push(metric); }

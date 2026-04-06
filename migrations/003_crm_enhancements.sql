@@ -3,11 +3,11 @@
 PRAGMA journal_mode = WAL;
 
 -- CRM Activities (calls, emails, meetings, notes)
-CREATE TABLE IF NOT EXISTS crm_activities (
+CREATE TABLE IF NOT EXISTS xcut_crm_activities (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
-  contact_id TEXT REFERENCES crm_contacts(id) ON DELETE CASCADE,
-  deal_id TEXT REFERENCES crm_deals(id) ON DELETE CASCADE,
+  contact_id TEXT REFERENCES xcut_crm_contacts(id) ON DELETE CASCADE,
+  deal_id TEXT REFERENCES xcut_crm_deals(id) ON DELETE CASCADE,
   activity_type TEXT NOT NULL, -- call, email, meeting, note, task
   subject TEXT NOT NULL,
   description TEXT,
@@ -17,14 +17,14 @@ CREATE TABLE IF NOT EXISTS crm_activities (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_crm_activities_tenant ON crm_activities(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_crm_activities_contact ON crm_activities(tenant_id, contact_id);
-CREATE INDEX IF NOT EXISTS idx_crm_activities_deal ON crm_activities(tenant_id, deal_id);
-CREATE INDEX IF NOT EXISTS idx_crm_activities_type ON crm_activities(tenant_id, activity_type);
-CREATE INDEX IF NOT EXISTS idx_crm_activities_due ON crm_activities(tenant_id, due_date);
+CREATE INDEX IF NOT EXISTS idx_crm_activities_tenant ON xcut_crm_activities(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_crm_activities_contact ON xcut_crm_activities(tenant_id, contact_id);
+CREATE INDEX IF NOT EXISTS idx_crm_activities_deal ON xcut_crm_activities(tenant_id, deal_id);
+CREATE INDEX IF NOT EXISTS idx_crm_activities_type ON xcut_crm_activities(tenant_id, activity_type);
+CREATE INDEX IF NOT EXISTS idx_crm_activities_due ON xcut_crm_activities(tenant_id, due_date);
 
 -- CRM Pipeline Stages (configurable per tenant)
-CREATE TABLE IF NOT EXISTS crm_pipeline_stages (
+CREATE TABLE IF NOT EXISTS xcut_crm_pipeline_stages (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -35,10 +35,10 @@ CREATE TABLE IF NOT EXISTS crm_pipeline_stages (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   UNIQUE(tenant_id, position)
 );
-CREATE INDEX IF NOT EXISTS idx_crm_stages_tenant ON crm_pipeline_stages(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_crm_stages_tenant ON xcut_crm_pipeline_stages(tenant_id);
 
 -- Insert default stages if none exist
-INSERT OR IGNORE INTO crm_pipeline_stages (id, tenant_id, name, position, probability, is_default)
+INSERT OR IGNORE INTO xcut_crm_pipeline_stages (id, tenant_id, name, position, probability, is_default)
 VALUES
   ('stage-new', 'default', 'New Lead', 0, 10, 1),
   ('stage-qualified', 'default', 'Qualified', 1, 30, 1),

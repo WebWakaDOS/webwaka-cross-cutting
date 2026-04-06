@@ -88,7 +88,7 @@ async function applySLAPolicy(
   try {
     // Look for tenant-specific SLA first, then default
     let policy = await db.prepare(`
-      SELECT * FROM ticket_sla_policies
+      SELECT * FROM xcut_ticket_sla_policies
       WHERE (tenant_id = ? OR tenant_id = 'default') AND priority = ? AND is_active = 1
       ORDER BY CASE WHEN tenant_id = ? THEN 0 ELSE 1 END ASC
       LIMIT 1
@@ -100,7 +100,7 @@ async function applySLAPolicy(
     const resolutionDue = createdAt + policy.resolution_time_minutes * 60 * 1000;
 
     await db.prepare(`
-      UPDATE tickets SET
+      UPDATE xcut_tickets SET
         sla_policy_id = ?, sla_status = 'within_sla',
         response_due_at = ?, resolution_due_at = ?
       WHERE id = ? AND tenant_id = ?
@@ -155,7 +155,7 @@ async function applyRoutingRules(
 ): Promise<{ assigned_to?: string; assign_team?: string; new_priority?: string; new_category?: string }> {
   try {
     const rulesResult = await db.prepare(`
-      SELECT * FROM ticket_routing_rules
+      SELECT * FROM xcut_ticket_routing_rules
       WHERE (tenant_id = ? OR tenant_id = 'default') AND is_active = 1
       ORDER BY priority_order ASC, tenant_id DESC
     `).bind(tenantId).all();
@@ -226,13 +226,13 @@ async function applyRoutingRules(
         updates.push("updated_at = ?");
         params.push(Date.now(), ticketId, tenantId);
         await db.prepare(
-          `UPDATE tickets SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
+          `UPDATE xcut_tickets SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
         ).bind(...params).run();
       }
 
       // Log routing decision
       await db.prepare(`
-        INSERT INTO ticket_routing_logs (id, ticket_id, rule_id, matched_keywords, action_taken, routed_to, fallback_used, created_at)
+        INSERT INTO xcut_ticket_routing_logs (id, ticket_id, rule_id, matched_keywords, action_taken, routed_to, fallback_used, created_at)
         VALUES (?, ?, ?, ?, ?, ?, 0, ?)
       `).bind(
         generateId("rtlog"), ticketId, rule.id,
@@ -245,7 +245,7 @@ async function applyRoutingRules(
 
     // Fallback: no rule matched — log fallback
     await db.prepare(`
-      INSERT INTO ticket_routing_logs (id, ticket_id, rule_id, matched_keywords, action_taken, routed_to, fallback_used, created_at)
+      INSERT INTO xcut_ticket_routing_logs (id, ticket_id, rule_id, matched_keywords, action_taken, routed_to, fallback_used, created_at)
       VALUES (?, ?, NULL, '[]', '{"fallback":"general_queue"}', NULL, 1, ?)
     `).bind(generateId("rtlog"), ticketId, Date.now()).run();
 
@@ -277,7 +277,7 @@ ticketingRouter.get("/", (c) =>
 // Tickets
 // ============================================================================
 
-ticketingRouter.get("/tickets", async (c) => {
+ticketingRouter.get("/xcut_tickets", async (c) => {
   try {
     const tenantId = c.get("tenantId") as string;
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
@@ -291,7 +291,7 @@ ticketingRouter.get("/tickets", async (c) => {
     const search = c.req.query("search");
     const offset = (page - 1) * limit;
 
-    let query = `SELECT * FROM tickets WHERE tenant_id = ?`;
+    let query = `SELECT * FROM xcut_tickets WHERE tenant_id = ?`;
     const params: any[] = [tenantId];
 
     if (status) { query += ` AND status = ?`; params.push(status); }
@@ -309,12 +309,12 @@ ticketingRouter.get("/tickets", async (c) => {
 
     const result = await c.env.DB.prepare(query).bind(...params).all();
     const countResult = await c.env.DB.prepare(
-      `SELECT COUNT(*) as count FROM tickets WHERE tenant_id = ?`
+      `SELECT COUNT(*) as count FROM xcut_tickets WHERE tenant_id = ?`
     ).bind(tenantId).first();
     const total = (countResult?.count as number) || 0;
     const now = Date.now();
 
-    const tickets = (result.results as any[]).map((t: any) => {
+    const xcut_tickets = (result.results as any[]).map((t: any) => {
       const slaStatus = computeSLAStatus(
         now, t.response_due_at, t.resolution_due_at, t.first_responded_at, t.status
       );
@@ -331,14 +331,14 @@ ticketingRouter.get("/tickets", async (c) => {
       };
     });
 
-    return c.json({ tickets, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+    return c.json({ xcut_tickets, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (error: any) {
     console.error("Tickets list error:", error);
     return c.json({ error: error.message || "Internal server error" }, 500);
   }
 });
 
-ticketingRouter.post("/tickets", async (c) => {
+ticketingRouter.post("/xcut_tickets", async (c) => {
   try {
     const tenantId = c.get("tenantId") as string;
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
@@ -350,7 +350,7 @@ ticketingRouter.post("/tickets", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO tickets (id, tenant_id, subject, body, status, priority, category, assigned_to, requester_id, source, created_at, updated_at)
+      INSERT INTO xcut_tickets (id, tenant_id, subject, body, status, priority, category, assigned_to, requester_id, source, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       ticketId, tenantId, data.subject, data.body || null, data.status, data.priority,
@@ -380,14 +380,14 @@ ticketingRouter.post("/tickets", async (c) => {
   }
 });
 
-ticketingRouter.get("/tickets/:id", async (c) => {
+ticketingRouter.get("/xcut_tickets/:id", async (c) => {
   try {
     const tenantId = c.get("tenantId") as string;
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
 
     const id = c.req.param("id");
     const result = await c.env.DB.prepare(
-      `SELECT * FROM tickets WHERE id = ? AND tenant_id = ?`
+      `SELECT * FROM xcut_tickets WHERE id = ? AND tenant_id = ?`
     ).bind(id, tenantId).first();
 
     if (!result) return c.json({ error: "Ticket not found" }, 404);
@@ -413,7 +413,7 @@ ticketingRouter.get("/tickets/:id", async (c) => {
   }
 });
 
-ticketingRouter.patch("/tickets/:id", async (c) => {
+ticketingRouter.patch("/xcut_tickets/:id", async (c) => {
   try {
     const tenantId = c.get("tenantId") as string;
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
@@ -448,13 +448,13 @@ ticketingRouter.patch("/tickets/:id", async (c) => {
     params.push(now, id, tenantId);
 
     await c.env.DB.prepare(
-      `UPDATE tickets SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_tickets SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
     ).bind(...params).run();
 
     // CC-TKT-001: Update SLA status after ticket state change
     if (data.status || data.priority) {
       const ticket = await c.env.DB.prepare(
-        `SELECT * FROM tickets WHERE id = ? AND tenant_id = ?`
+        `SELECT * FROM xcut_tickets WHERE id = ? AND tenant_id = ?`
       ).bind(id, tenantId).first() as any;
 
       if (ticket) {
@@ -463,7 +463,7 @@ ticketingRouter.patch("/tickets/:id", async (c) => {
           ticket.first_responded_at, ticket.status
         );
         await c.env.DB.prepare(
-          `UPDATE tickets SET sla_status = ? WHERE id = ? AND tenant_id = ?`
+          `UPDATE xcut_tickets SET sla_status = ? WHERE id = ? AND tenant_id = ?`
         ).bind(newSlaStatus, id, tenantId).run();
       }
     }
@@ -476,14 +476,14 @@ ticketingRouter.patch("/tickets/:id", async (c) => {
   }
 });
 
-ticketingRouter.delete("/tickets/:id", async (c) => {
+ticketingRouter.delete("/xcut_tickets/:id", async (c) => {
   try {
     const tenantId = c.get("tenantId") as string;
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
 
     const id = c.req.param("id");
     const result = await c.env.DB.prepare(
-      `DELETE FROM tickets WHERE id = ? AND tenant_id = ?`
+      `DELETE FROM xcut_tickets WHERE id = ? AND tenant_id = ?`
     ).bind(id, tenantId).run();
 
     if (!result.meta.changes) return c.json({ error: "Ticket not found" }, 404);
@@ -498,14 +498,14 @@ ticketingRouter.delete("/tickets/:id", async (c) => {
 // Comments
 // ============================================================================
 
-ticketingRouter.get("/tickets/:id/comments", async (c) => {
+ticketingRouter.get("/xcut_tickets/:id/comments", async (c) => {
   try {
     const tenantId = c.get("tenantId") as string;
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
 
     const ticketId = c.req.param("id");
     const result = await c.env.DB.prepare(
-      `SELECT * FROM ticket_comments WHERE ticket_id = ? ORDER BY created_at ASC`
+      `SELECT * FROM xcut_ticket_comments WHERE ticket_id = ? ORDER BY created_at ASC`
     ).bind(ticketId).all();
 
     const comments = (result.results as any[]).map((cm: any) => ({
@@ -520,7 +520,7 @@ ticketingRouter.get("/tickets/:id/comments", async (c) => {
   }
 });
 
-ticketingRouter.post("/tickets/:id/comments", async (c) => {
+ticketingRouter.post("/xcut_tickets/:id/comments", async (c) => {
   try {
     const tenantId = c.get("tenantId") as string;
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
@@ -534,14 +534,14 @@ ticketingRouter.post("/tickets/:id/comments", async (c) => {
     const authorId = (c.get("jwtPayload") as any)?.userId || "system";
 
     await c.env.DB.prepare(`
-      INSERT INTO ticket_comments (id, ticket_id, author_id, body, is_internal, created_at)
+      INSERT INTO xcut_ticket_comments (id, ticket_id, author_id, body, is_internal, created_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `).bind(commentId, ticketId, authorId, data.body, data.is_internal ? 1 : 0, now).run();
 
     // CC-TKT-001: Mark first response time when non-internal comment is added
     if (!data.is_internal) {
       await c.env.DB.prepare(`
-        UPDATE tickets SET
+        UPDATE xcut_tickets SET
           first_responded_at = COALESCE(first_responded_at, ?),
           updated_at = ?
         WHERE id = ? AND tenant_id = ?
@@ -566,7 +566,7 @@ ticketingRouter.get("/sla-policies", async (c) => {
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
 
     const result = await c.env.DB.prepare(`
-      SELECT * FROM ticket_sla_policies
+      SELECT * FROM xcut_ticket_sla_policies
       WHERE tenant_id = ? OR tenant_id = 'default'
       ORDER BY CASE WHEN tenant_id = ? THEN 0 ELSE 1 END, priority ASC
     `).bind(tenantId, tenantId).all();
@@ -597,7 +597,7 @@ ticketingRouter.post("/sla-policies", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO ticket_sla_policies (id, tenant_id, name, priority, response_time_minutes, resolution_time_minutes, escalate_to, is_active, created_at, updated_at)
+      INSERT INTO xcut_ticket_sla_policies (id, tenant_id, name, priority, response_time_minutes, resolution_time_minutes, escalate_to, is_active, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       policyId, tenantId, data.name, data.priority,
@@ -636,7 +636,7 @@ ticketingRouter.patch("/sla-policies/:id", async (c) => {
     params.push(Date.now(), id, tenantId);
 
     await c.env.DB.prepare(
-      `UPDATE ticket_sla_policies SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_ticket_sla_policies SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
     ).bind(...params).run();
 
     return c.json({ success: true });
@@ -653,7 +653,7 @@ ticketingRouter.delete("/sla-policies/:id", async (c) => {
 
     const id = c.req.param("id");
     await c.env.DB.prepare(
-      `UPDATE ticket_sla_policies SET is_active = 0, updated_at = ? WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_ticket_sla_policies SET is_active = 0, updated_at = ? WHERE id = ? AND tenant_id = ?`
     ).bind(Date.now(), id, tenantId).run();
 
     return c.json({ success: true });
@@ -676,7 +676,7 @@ ticketingRouter.get("/sla-report", async (c) => {
         COUNT(*) as count,
         AVG(CASE WHEN resolved_at IS NOT NULL AND resolution_due_at IS NOT NULL
             THEN (resolved_at - created_at) / 60000.0 ELSE NULL END) as avg_resolution_minutes
-      FROM tickets
+      FROM xcut_tickets
       WHERE tenant_id = ?
       GROUP BY priority, sla_status
       ORDER BY priority, sla_status
@@ -688,7 +688,7 @@ ticketingRouter.get("/sla-report", async (c) => {
         SUM(CASE WHEN sla_status = 'within_sla' THEN 1 ELSE 0 END) as within_sla,
         SUM(CASE WHEN sla_status = 'at_risk' THEN 1 ELSE 0 END) as at_risk,
         SUM(CASE WHEN sla_status = 'breached' THEN 1 ELSE 0 END) as breached
-      FROM tickets WHERE tenant_id = ?
+      FROM xcut_tickets WHERE tenant_id = ?
     `).bind(tenantId).first() as any;
 
     const compliance_rate = summary?.total > 0
@@ -721,7 +721,7 @@ ticketingRouter.get("/routing-rules", async (c) => {
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
 
     const result = await c.env.DB.prepare(`
-      SELECT * FROM ticket_routing_rules
+      SELECT * FROM xcut_ticket_routing_rules
       WHERE tenant_id = ? OR tenant_id = 'default'
       ORDER BY priority_order ASC, tenant_id DESC
     `).bind(tenantId).all();
@@ -752,7 +752,7 @@ ticketingRouter.post("/routing-rules", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO ticket_routing_rules (id, tenant_id, name, priority_order, match_type,
+      INSERT INTO xcut_ticket_routing_rules (id, tenant_id, name, priority_order, match_type,
         keyword_patterns, urgency_keywords, category_match, source_match,
         assign_to, assign_team, set_priority, set_category, is_active, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -805,7 +805,7 @@ ticketingRouter.patch("/routing-rules/:id", async (c) => {
     params.push(Date.now(), id, tenantId);
 
     await c.env.DB.prepare(
-      `UPDATE ticket_routing_rules SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_ticket_routing_rules SET ${updates.join(", ")} WHERE id = ? AND tenant_id = ?`
     ).bind(...params).run();
 
     return c.json({ success: true });
@@ -822,7 +822,7 @@ ticketingRouter.delete("/routing-rules/:id", async (c) => {
 
     const id = c.req.param("id");
     await c.env.DB.prepare(
-      `UPDATE ticket_routing_rules SET is_active = 0, updated_at = ? WHERE id = ? AND tenant_id = ?`
+      `UPDATE xcut_ticket_routing_rules SET is_active = 0, updated_at = ? WHERE id = ? AND tenant_id = ?`
     ).bind(Date.now(), id, tenantId).run();
 
     return c.json({ success: true });
@@ -841,8 +841,8 @@ ticketingRouter.get("/routing-logs", async (c) => {
     const limit = parseInt(c.req.query("limit") || "50");
 
     let query = `
-      SELECT rl.*, t.subject as ticket_subject FROM ticket_routing_logs rl
-      JOIN tickets t ON rl.ticket_id = t.id
+      SELECT rl.*, t.subject as ticket_subject FROM xcut_ticket_routing_logs rl
+      JOIN xcut_tickets t ON rl.ticket_id = t.id
       WHERE t.tenant_id = ?
     `;
     const params: any[] = [tenantId];
@@ -876,7 +876,7 @@ ticketingRouter.get("/workflows", async (c) => {
     if (!tenantId) return c.json({ error: "Unauthorized" }, 401);
 
     const result = await c.env.DB.prepare(
-      `SELECT * FROM ticket_workflows WHERE tenant_id = ? ORDER BY created_at DESC`
+      `SELECT * FROM xcut_ticket_workflows WHERE tenant_id = ? ORDER BY created_at DESC`
     ).bind(tenantId).all();
 
     const workflows = (result.results as any[]).map((w: any) => ({
@@ -901,7 +901,7 @@ ticketingRouter.post("/workflows", async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO ticket_workflows (id, tenant_id, name, trigger_type, trigger_value, action_type, action_value, is_active, created_at)
+      INSERT INTO xcut_ticket_workflows (id, tenant_id, name, trigger_type, trigger_value, action_type, action_value, is_active, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(workflowId, tenantId, data.name, data.trigger_type, data.trigger_value, data.action_type, data.action_value, data.is_active ? 1 : 0, now).run();
 
@@ -920,7 +920,7 @@ ticketingRouter.delete("/workflows/:id", async (c) => {
 
     const id = c.req.param("id");
     const result = await c.env.DB.prepare(
-      `DELETE FROM ticket_workflows WHERE id = ? AND tenant_id = ?`
+      `DELETE FROM xcut_ticket_workflows WHERE id = ? AND tenant_id = ?`
     ).bind(id, tenantId).run();
 
     if (!result.meta.changes) return c.json({ error: "Workflow not found" }, 404);

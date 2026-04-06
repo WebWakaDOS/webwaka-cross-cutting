@@ -8,26 +8,26 @@ PRAGMA journal_mode = WAL;
 -- Schema backfills (columns referenced by new code, absent from prior schemas)
 -- ============================================================================
 
--- chat_conversations: add title column (referenced since v1 code but missing from schema)
-ALTER TABLE chat_conversations ADD COLUMN title TEXT;
+-- xcut_chat_conversations: add title column (referenced since v1 code but missing from schema)
+ALTER TABLE xcut_chat_conversations ADD COLUMN title TEXT;
 
--- chat_messages: file_id and metadata for CC-CHAT-001 / CC-CHAT-002
+-- xcut_chat_messages: file_id and metadata for CC-CHAT-001 / CC-CHAT-002
 -- (also declared later in CC-CHAT section, declared here for logical order)
 
--- hrm_employees: payroll-related fields for CC-HRM-001
-ALTER TABLE hrm_employees ADD COLUMN bank_account TEXT;
-ALTER TABLE hrm_employees ADD COLUMN bank_name TEXT;
-ALTER TABLE hrm_employees ADD COLUMN tax_id TEXT;
-ALTER TABLE hrm_employees ADD COLUMN pension_id TEXT;
+-- xcut_hrm_employees: payroll-related fields for CC-HRM-001
+ALTER TABLE xcut_hrm_employees ADD COLUMN bank_account TEXT;
+ALTER TABLE xcut_hrm_employees ADD COLUMN bank_name TEXT;
+ALTER TABLE xcut_hrm_employees ADD COLUMN tax_id TEXT;
+ALTER TABLE xcut_hrm_employees ADD COLUMN pension_id TEXT;
 
 -- ============================================================================
 -- CC-CRM-001: Lead Scoring
 -- ============================================================================
 
-ALTER TABLE crm_contacts ADD COLUMN lead_score INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE crm_contacts ADD COLUMN score_updated_at INTEGER;
+ALTER TABLE xcut_crm_contacts ADD COLUMN lead_score INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE xcut_crm_contacts ADD COLUMN score_updated_at INTEGER;
 
-CREATE TABLE IF NOT EXISTS crm_scoring_rules (
+CREATE TABLE IF NOT EXISTS xcut_crm_scoring_rules (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -39,22 +39,22 @@ CREATE TABLE IF NOT EXISTS crm_scoring_rules (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_scoring_rules_tenant ON crm_scoring_rules(tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_scoring_rules_tenant ON xcut_crm_scoring_rules(tenant_id, is_active);
 
-CREATE TABLE IF NOT EXISTS crm_score_events (
+CREATE TABLE IF NOT EXISTS xcut_crm_score_events (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
-  contact_id TEXT NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
-  rule_id TEXT REFERENCES crm_scoring_rules(id),
+  contact_id TEXT NOT NULL REFERENCES xcut_crm_contacts(id) ON DELETE CASCADE,
+  rule_id TEXT REFERENCES xcut_crm_scoring_rules(id),
   score_delta INTEGER NOT NULL,
   reason TEXT NOT NULL,
   score_after INTEGER NOT NULL,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_score_events_contact ON crm_score_events(contact_id);
+CREATE INDEX IF NOT EXISTS idx_score_events_contact ON xcut_crm_score_events(contact_id);
 
 -- Default scoring rules (tenant_id = 'default' = platform defaults)
-INSERT OR IGNORE INTO crm_scoring_rules (id, tenant_id, name, attribute, operator, value, score_delta)
+INSERT OR IGNORE INTO xcut_crm_scoring_rules (id, tenant_id, name, attribute, operator, value, score_delta)
 VALUES
   ('rule-stage-qualified',    'default', 'Stage: Qualified',    'stage', 'eq', 'qualified',    20),
   ('rule-stage-proposal',     'default', 'Stage: Proposal',     'stage', 'eq', 'proposal',     35),
@@ -72,7 +72,7 @@ VALUES
 -- CC-CRM-002: Marketing Automation Workflows
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS crm_automation_workflows (
+CREATE TABLE IF NOT EXISTS xcut_crm_automation_workflows (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -84,22 +84,22 @@ CREATE TABLE IF NOT EXISTS crm_automation_workflows (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_crm_workflows_tenant ON crm_automation_workflows(tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_crm_workflows_tenant ON xcut_crm_automation_workflows(tenant_id, is_active);
 
-CREATE TABLE IF NOT EXISTS crm_automation_actions (
+CREATE TABLE IF NOT EXISTS xcut_crm_automation_actions (
   id TEXT PRIMARY KEY,
-  workflow_id TEXT NOT NULL REFERENCES crm_automation_workflows(id) ON DELETE CASCADE,
+  workflow_id TEXT NOT NULL REFERENCES xcut_crm_automation_workflows(id) ON DELETE CASCADE,
   step_order INTEGER NOT NULL DEFAULT 0,
   action_type TEXT NOT NULL,     -- send_notification, create_activity, update_stage, assign_contact
   action_config TEXT NOT NULL DEFAULT '{}',  -- JSON: e.g. {"message":"Welcome!","channel":"email"}
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_crm_actions_workflow ON crm_automation_actions(workflow_id, step_order);
+CREATE INDEX IF NOT EXISTS idx_crm_actions_workflow ON xcut_crm_automation_actions(workflow_id, step_order);
 
-CREATE TABLE IF NOT EXISTS crm_automation_logs (
+CREATE TABLE IF NOT EXISTS xcut_crm_automation_logs (
   id TEXT PRIMARY KEY,
-  workflow_id TEXT NOT NULL REFERENCES crm_automation_workflows(id),
-  contact_id TEXT REFERENCES crm_contacts(id),
+  workflow_id TEXT NOT NULL REFERENCES xcut_crm_automation_workflows(id),
+  contact_id TEXT REFERENCES xcut_crm_contacts(id),
   deal_id TEXT,
   trigger_event TEXT NOT NULL,
   actions_executed TEXT NOT NULL DEFAULT '[]',  -- JSON array of executed action IDs
@@ -107,14 +107,14 @@ CREATE TABLE IF NOT EXISTS crm_automation_logs (
   error TEXT,
   executed_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_crm_logs_workflow ON crm_automation_logs(workflow_id);
-CREATE INDEX IF NOT EXISTS idx_crm_logs_contact ON crm_automation_logs(contact_id);
+CREATE INDEX IF NOT EXISTS idx_crm_logs_workflow ON xcut_crm_automation_logs(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_crm_logs_contact ON xcut_crm_automation_logs(contact_id);
 
 -- ============================================================================
 -- CC-HRM-001: Payroll Processing
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS hrm_payroll_configs (
+CREATE TABLE IF NOT EXISTS xcut_hrm_payroll_configs (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL UNIQUE,
   pension_rate_pct INTEGER NOT NULL DEFAULT 800,   -- 8.00% stored as integer*100
@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS hrm_payroll_configs (
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
 
-CREATE TABLE IF NOT EXISTS hrm_payroll_runs (
+CREATE TABLE IF NOT EXISTS xcut_hrm_payroll_runs (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   period_label TEXT NOT NULL,    -- e.g. "2026-03"
@@ -141,13 +141,13 @@ CREATE TABLE IF NOT EXISTS hrm_payroll_runs (
   processed_at INTEGER,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_payroll_runs_tenant ON hrm_payroll_runs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_runs_tenant ON xcut_hrm_payroll_runs(tenant_id);
 
-CREATE TABLE IF NOT EXISTS hrm_pay_slips (
+CREATE TABLE IF NOT EXISTS xcut_hrm_pay_slips (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
-  payroll_run_id TEXT NOT NULL REFERENCES hrm_payroll_runs(id),
-  employee_id TEXT NOT NULL REFERENCES hrm_employees(id),
+  payroll_run_id TEXT NOT NULL REFERENCES xcut_hrm_payroll_runs(id),
+  employee_id TEXT NOT NULL REFERENCES xcut_hrm_employees(id),
   period_label TEXT NOT NULL,
   gross_kobo INTEGER NOT NULL DEFAULT 0,
   basic_kobo INTEGER NOT NULL DEFAULT 0,
@@ -163,18 +163,18 @@ CREATE TABLE IF NOT EXISTS hrm_pay_slips (
   bank_name TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_pay_slips_tenant ON hrm_pay_slips(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_pay_slips_run ON hrm_pay_slips(payroll_run_id);
-CREATE INDEX IF NOT EXISTS idx_pay_slips_employee ON hrm_pay_slips(employee_id);
+CREATE INDEX IF NOT EXISTS idx_pay_slips_tenant ON xcut_hrm_pay_slips(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pay_slips_run ON xcut_hrm_pay_slips(payroll_run_id);
+CREATE INDEX IF NOT EXISTS idx_pay_slips_employee ON xcut_hrm_pay_slips(employee_id);
 
 -- ============================================================================
 -- CC-HRM-002: Performance Management
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS hrm_goals (
+CREATE TABLE IF NOT EXISTS xcut_hrm_goals (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
-  employee_id TEXT NOT NULL REFERENCES hrm_employees(id),
+  employee_id TEXT NOT NULL REFERENCES xcut_hrm_employees(id),
   title TEXT NOT NULL,
   description TEXT,
   target TEXT,                    -- measurable target description
@@ -185,10 +185,10 @@ CREATE TABLE IF NOT EXISTS hrm_goals (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_hrm_goals_tenant ON hrm_goals(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_hrm_goals_employee ON hrm_goals(employee_id);
+CREATE INDEX IF NOT EXISTS idx_hrm_goals_tenant ON xcut_hrm_goals(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_hrm_goals_employee ON xcut_hrm_goals(employee_id);
 
-CREATE TABLE IF NOT EXISTS hrm_review_cycles (
+CREATE TABLE IF NOT EXISTS xcut_hrm_review_cycles (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -199,13 +199,13 @@ CREATE TABLE IF NOT EXISTS hrm_review_cycles (
   created_by TEXT NOT NULL,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_review_cycles_tenant ON hrm_review_cycles(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_review_cycles_tenant ON xcut_hrm_review_cycles(tenant_id);
 
-CREATE TABLE IF NOT EXISTS hrm_reviews (
+CREATE TABLE IF NOT EXISTS xcut_hrm_reviews (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
-  cycle_id TEXT NOT NULL REFERENCES hrm_review_cycles(id),
-  employee_id TEXT NOT NULL REFERENCES hrm_employees(id),
+  cycle_id TEXT NOT NULL REFERENCES xcut_hrm_review_cycles(id),
+  employee_id TEXT NOT NULL REFERENCES xcut_hrm_employees(id),
   reviewer_id TEXT NOT NULL,
   review_type TEXT NOT NULL DEFAULT 'manager',  -- manager, self, peer
   rating INTEGER,               -- 1-5
@@ -217,29 +217,29 @@ CREATE TABLE IF NOT EXISTS hrm_reviews (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_hrm_reviews_tenant ON hrm_reviews(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_hrm_reviews_cycle ON hrm_reviews(cycle_id);
-CREATE INDEX IF NOT EXISTS idx_hrm_reviews_employee ON hrm_reviews(employee_id);
+CREATE INDEX IF NOT EXISTS idx_hrm_reviews_tenant ON xcut_hrm_reviews(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_hrm_reviews_cycle ON xcut_hrm_reviews(cycle_id);
+CREATE INDEX IF NOT EXISTS idx_hrm_reviews_employee ON xcut_hrm_reviews(employee_id);
 
-CREATE TABLE IF NOT EXISTS hrm_feedback (
+CREATE TABLE IF NOT EXISTS xcut_hrm_feedback (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   from_employee_id TEXT NOT NULL,
   to_employee_id TEXT NOT NULL,
-  goal_id TEXT REFERENCES hrm_goals(id),
+  goal_id TEXT REFERENCES xcut_hrm_goals(id),
   message TEXT NOT NULL,
   feedback_type TEXT NOT NULL DEFAULT 'general',  -- general, goal, recognition, improvement
   is_private INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_hrm_feedback_tenant ON hrm_feedback(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_hrm_feedback_to ON hrm_feedback(to_employee_id);
+CREATE INDEX IF NOT EXISTS idx_hrm_feedback_tenant ON xcut_hrm_feedback(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_hrm_feedback_to ON xcut_hrm_feedback(to_employee_id);
 
 -- ============================================================================
 -- CC-TKT-001: SLA Management
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS ticket_sla_policies (
+CREATE TABLE IF NOT EXISTS xcut_ticket_sla_policies (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -251,16 +251,16 @@ CREATE TABLE IF NOT EXISTS ticket_sla_policies (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_sla_policies_tenant ON ticket_sla_policies(tenant_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_sla_policies_tenant ON xcut_ticket_sla_policies(tenant_id, is_active);
 
-ALTER TABLE tickets ADD COLUMN sla_policy_id TEXT;
-ALTER TABLE tickets ADD COLUMN sla_status TEXT DEFAULT 'within_sla';  -- within_sla, at_risk, breached
-ALTER TABLE tickets ADD COLUMN response_due_at INTEGER;
-ALTER TABLE tickets ADD COLUMN resolution_due_at INTEGER;
-ALTER TABLE tickets ADD COLUMN first_responded_at INTEGER;
+ALTER TABLE xcut_tickets ADD COLUMN sla_policy_id TEXT;
+ALTER TABLE xcut_tickets ADD COLUMN sla_status TEXT DEFAULT 'within_sla';  -- within_sla, at_risk, breached
+ALTER TABLE xcut_tickets ADD COLUMN response_due_at INTEGER;
+ALTER TABLE xcut_tickets ADD COLUMN resolution_due_at INTEGER;
+ALTER TABLE xcut_tickets ADD COLUMN first_responded_at INTEGER;
 
 -- Default SLA policies (platform-wide)
-INSERT OR IGNORE INTO ticket_sla_policies (id, tenant_id, name, priority, response_time_minutes, resolution_time_minutes)
+INSERT OR IGNORE INTO xcut_ticket_sla_policies (id, tenant_id, name, priority, response_time_minutes, resolution_time_minutes)
 VALUES
   ('sla-default-low',      'default', 'Low Priority SLA',      'low',      240, 2880),
   ('sla-default-medium',   'default', 'Medium Priority SLA',   'medium',   120, 1440),
@@ -271,7 +271,7 @@ VALUES
 -- CC-TKT-002: Automated Ticket Routing
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS ticket_routing_rules (
+CREATE TABLE IF NOT EXISTS xcut_ticket_routing_rules (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -289,28 +289,28 @@ CREATE TABLE IF NOT EXISTS ticket_routing_rules (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_routing_rules_tenant ON ticket_routing_rules(tenant_id, is_active, priority_order);
+CREATE INDEX IF NOT EXISTS idx_routing_rules_tenant ON xcut_ticket_routing_rules(tenant_id, is_active, priority_order);
 
-CREATE TABLE IF NOT EXISTS ticket_routing_logs (
+CREATE TABLE IF NOT EXISTS xcut_ticket_routing_logs (
   id TEXT PRIMARY KEY,
-  ticket_id TEXT NOT NULL REFERENCES tickets(id),
-  rule_id TEXT REFERENCES ticket_routing_rules(id),
+  ticket_id TEXT NOT NULL REFERENCES xcut_tickets(id),
+  rule_id TEXT REFERENCES xcut_ticket_routing_rules(id),
   matched_keywords TEXT,          -- JSON array of matched keywords
   action_taken TEXT NOT NULL,     -- JSON describing what was done
   routed_to TEXT,
   fallback_used INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_routing_logs_ticket ON ticket_routing_logs(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_routing_logs_ticket ON xcut_ticket_routing_logs(ticket_id);
 
 -- ============================================================================
 -- CC-CHAT-001 + CC-CHAT-002: File Sharing & Rich Media
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS chat_files (
+CREATE TABLE IF NOT EXISTS xcut_chat_files (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
-  conversation_id TEXT NOT NULL REFERENCES chat_conversations(id),
+  conversation_id TEXT NOT NULL REFERENCES xcut_chat_conversations(id),
   uploaded_by TEXT NOT NULL,
   filename TEXT NOT NULL,
   original_name TEXT NOT NULL,
@@ -325,22 +325,22 @@ CREATE TABLE IF NOT EXISTS chat_files (
   is_accessible INTEGER NOT NULL DEFAULT 1,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_chat_files_conv ON chat_files(conversation_id);
-CREATE INDEX IF NOT EXISTS idx_chat_files_tenant ON chat_files(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_chat_files_conv ON xcut_chat_files(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_chat_files_tenant ON xcut_chat_files(tenant_id);
 
-ALTER TABLE chat_messages ADD COLUMN file_id TEXT REFERENCES chat_files(id);
-ALTER TABLE chat_messages ADD COLUMN metadata TEXT;  -- JSON: alt_text, caption, etc.
+ALTER TABLE xcut_chat_messages ADD COLUMN file_id TEXT REFERENCES xcut_chat_files(id);
+ALTER TABLE xcut_chat_messages ADD COLUMN metadata TEXT;  -- JSON: alt_text, caption, etc.
 
 -- ============================================================================
 -- CC-ANL-001: Custom Report Builder
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS analytics_report_definitions (
+CREATE TABLE IF NOT EXISTS xcut_analytics_report_definitions (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   name TEXT NOT NULL,
   description TEXT,
-  data_source TEXT NOT NULL,       -- crm_contacts, tickets, hrm_employees, analytics_events, etc.
+  data_source TEXT NOT NULL,       -- xcut_crm_contacts, xcut_tickets, xcut_hrm_employees, xcut_analytics_events, etc.
   metrics TEXT NOT NULL DEFAULT '[]',     -- JSON array: [{field, aggregation: sum|count|avg|min|max}]
   dimensions TEXT NOT NULL DEFAULT '[]',  -- JSON array: [{field, alias}]
   filters TEXT NOT NULL DEFAULT '[]',     -- JSON array: [{field, operator, value}]
@@ -353,11 +353,11 @@ CREATE TABLE IF NOT EXISTS analytics_report_definitions (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_report_defs_tenant ON analytics_report_definitions(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_report_defs_tenant ON xcut_analytics_report_definitions(tenant_id);
 
-CREATE TABLE IF NOT EXISTS analytics_report_runs (
+CREATE TABLE IF NOT EXISTS xcut_analytics_report_runs (
   id TEXT PRIMARY KEY,
-  report_id TEXT NOT NULL REFERENCES analytics_report_definitions(id) ON DELETE CASCADE,
+  report_id TEXT NOT NULL REFERENCES xcut_analytics_report_definitions(id) ON DELETE CASCADE,
   tenant_id TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',   -- pending, running, completed, failed
   row_count INTEGER,
@@ -367,14 +367,14 @@ CREATE TABLE IF NOT EXISTS analytics_report_runs (
   started_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   completed_at INTEGER
 );
-CREATE INDEX IF NOT EXISTS idx_report_runs_report ON analytics_report_runs(report_id);
-CREATE INDEX IF NOT EXISTS idx_report_runs_tenant ON analytics_report_runs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_report_runs_report ON xcut_analytics_report_runs(report_id);
+CREATE INDEX IF NOT EXISTS idx_report_runs_tenant ON xcut_analytics_report_runs(tenant_id);
 
 -- ============================================================================
 -- CC-ANL-002: Predictive Analytics
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS analytics_predictions (
+CREATE TABLE IF NOT EXISTS xcut_analytics_predictions (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   metric_name TEXT NOT NULL,       -- lead_conversion_rate, ticket_resolution_time, employee_churn
@@ -389,5 +389,5 @@ CREATE TABLE IF NOT EXISTS analytics_predictions (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   expires_at INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_predictions_tenant ON analytics_predictions(tenant_id, metric_name);
-CREATE INDEX IF NOT EXISTS idx_predictions_expires ON analytics_predictions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_predictions_tenant ON xcut_analytics_predictions(tenant_id, metric_name);
+CREATE INDEX IF NOT EXISTS idx_predictions_expires ON xcut_analytics_predictions(expires_at);

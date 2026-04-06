@@ -4,7 +4,7 @@
 PRAGMA journal_mode = WAL;
 
 -- Analytics Events (raw event log from event bus)
-CREATE TABLE IF NOT EXISTS analytics_events (
+CREATE TABLE IF NOT EXISTS xcut_analytics_events (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   event_type TEXT NOT NULL,
@@ -12,13 +12,13 @@ CREATE TABLE IF NOT EXISTS analytics_events (
   event_data TEXT NOT NULL,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000)
 );
-CREATE INDEX IF NOT EXISTS idx_analytics_tenant ON analytics_events(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics_events(tenant_id, event_type);
-CREATE INDEX IF NOT EXISTS idx_analytics_vertical ON analytics_events(tenant_id, vertical);
-CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_analytics_tenant ON xcut_analytics_events(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_type ON xcut_analytics_events(tenant_id, event_type);
+CREATE INDEX IF NOT EXISTS idx_analytics_vertical ON xcut_analytics_events(tenant_id, vertical);
+CREATE INDEX IF NOT EXISTS idx_analytics_created ON xcut_analytics_events(created_at);
 
 -- Daily Metrics (aggregated per vertical per day)
-CREATE TABLE IF NOT EXISTS analytics_daily_metrics (
+CREATE TABLE IF NOT EXISTS xcut_analytics_daily_metrics (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   vertical TEXT NOT NULL,
@@ -33,11 +33,11 @@ CREATE TABLE IF NOT EXISTS analytics_daily_metrics (
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   UNIQUE(tenant_id, vertical, metric_date)
 );
-CREATE INDEX IF NOT EXISTS idx_metrics_date ON analytics_daily_metrics(tenant_id, metric_date);
-CREATE INDEX IF NOT EXISTS idx_metrics_vertical ON analytics_daily_metrics(tenant_id, vertical);
+CREATE INDEX IF NOT EXISTS idx_metrics_date ON xcut_analytics_daily_metrics(tenant_id, metric_date);
+CREATE INDEX IF NOT EXISTS idx_metrics_vertical ON xcut_analytics_daily_metrics(tenant_id, vertical);
 
 -- Monthly Aggregates (for faster dashboard queries)
-CREATE TABLE IF NOT EXISTS analytics_monthly_aggregates (
+CREATE TABLE IF NOT EXISTS xcut_analytics_monthly_aggregates (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   metric_month TEXT NOT NULL,
@@ -51,10 +51,10 @@ CREATE TABLE IF NOT EXISTS analytics_monthly_aggregates (
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   UNIQUE(tenant_id, metric_month)
 );
-CREATE INDEX IF NOT EXISTS idx_aggregates_month ON analytics_monthly_aggregates(metric_month);
+CREATE INDEX IF NOT EXISTS idx_aggregates_month ON xcut_analytics_monthly_aggregates(metric_month);
 
 -- AI-Generated Insights
-CREATE TABLE IF NOT EXISTS analytics_insights (
+CREATE TABLE IF NOT EXISTS xcut_analytics_insights (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   insight_type TEXT NOT NULL,
@@ -65,6 +65,6 @@ CREATE TABLE IF NOT EXISTS analytics_insights (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()*1000),
   expires_at INTEGER
 );
-CREATE INDEX IF NOT EXISTS idx_insights_tenant ON analytics_insights(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_insights_type ON analytics_insights(tenant_id, insight_type);
-CREATE INDEX IF NOT EXISTS idx_insights_created ON analytics_insights(created_at);
+CREATE INDEX IF NOT EXISTS idx_insights_tenant ON xcut_analytics_insights(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_insights_type ON xcut_analytics_insights(tenant_id, insight_type);
+CREATE INDEX IF NOT EXISTS idx_insights_created ON xcut_analytics_insights(created_at);

@@ -435,16 +435,16 @@ describe("XCT-3: Ticketing — module metadata", () => {
 });
 
 describe("XCT-3: Ticketing — Tickets", () => {
-  it("GET /api/ticketing/tickets returns { tickets, pagination }", async () => {
-    const r = await req("GET", "/api/ticketing/tickets");
+  it("GET /api/ticketing/xcut_tickets returns { xcut_tickets, pagination }", async () => {
+    const r = await req("GET", "/api/ticketing/xcut_tickets");
     expect(r.status).toBe(200);
-    expect(r.json).toHaveProperty("tickets");
+    expect(r.json).toHaveProperty("xcut_tickets");
     expect(r.json).toHaveProperty("pagination");
-    expect(Array.isArray(r.json.tickets)).toBe(true);
+    expect(Array.isArray(r.json.xcut_tickets)).toBe(true);
   });
 
-  it("POST /api/ticketing/tickets creates ticket with routing result (CC-TKT-002)", async () => {
-    const r = await req("POST", "/api/ticketing/tickets", {
+  it("POST /api/ticketing/xcut_tickets creates ticket with routing result (CC-TKT-002)", async () => {
+    const r = await req("POST", "/api/ticketing/xcut_tickets", {
       subject: "Cannot login to dashboard",
       body: "I get an error when I try to login.",
       priority: "high",
@@ -456,8 +456,8 @@ describe("XCT-3: Ticketing — Tickets", () => {
     expect(r.json).toHaveProperty("routing"); // CC-TKT-002: routing applied on create
   });
 
-  it("POST /api/ticketing/tickets rejects missing subject", async () => {
-    const r = await req("POST", "/api/ticketing/tickets", { body: "No subject" });
+  it("POST /api/ticketing/xcut_tickets rejects missing subject", async () => {
+    const r = await req("POST", "/api/ticketing/xcut_tickets", { body: "No subject" });
     expect(r.status).toBe(400);
   });
 });
@@ -686,7 +686,7 @@ describe("CC-ANL-001: Custom Report Builder", () => {
   it("POST /api/analytics/reports creates report definition and returns { success, id }", async () => {
     const r = await req("POST", "/api/analytics/reports", {
       name: "Avg Lead Score by Stage",
-      data_source: "crm_contacts",
+      data_source: "xcut_crm_contacts",
       metrics: [{ field: "lead_score", aggregation: "avg", alias: "avg_score" }],
       dimensions: [{ field: "stage" }],
       filters: [],
@@ -711,8 +711,8 @@ describe("CC-ANL-001: Custom Report Builder", () => {
     expect(r.status).toBe(200);
     expect(r.json).toHaveProperty("data_sources");
     const sourceNames = r.json.data_sources.map((s: any) => s.name);
-    expect(sourceNames).toContain("crm_contacts");
-    expect(sourceNames).toContain("analytics_daily_metrics");
+    expect(sourceNames).toContain("xcut_crm_contacts");
+    expect(sourceNames).toContain("xcut_analytics_daily_metrics");
   });
 });
 

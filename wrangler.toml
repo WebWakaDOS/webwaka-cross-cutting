@@ -23,8 +23,9 @@ name = "webwaka-cross-cutting-api-prod"
 
 [[env.production.d1_databases]]
 binding = "DB"
-database_name = "webwaka-cross-cutting-db-prod"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_name = "webwaka-production-db"
+database_id = "d01940d3-d69e-4455-94ba-bc2404cb3872"
+migrations_dir = "migrations"
 
 [[env.production.kv_namespaces]]
 binding = "SESSIONS_KV"
@@ -49,8 +50,9 @@ name = "webwaka-cross-cutting-api-staging"
 
 [[env.staging.d1_databases]]
 binding = "DB"
-database_name = "webwaka-cross-cutting-db-staging"
-database_id = "REPLACE_WITH_STAGING_D1_ID"
+database_name = "webwaka-staging-db"
+database_id = "d7278ca0-2408-40d5-a08b-d8456601f667"
+migrations_dir = "migrations"
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
