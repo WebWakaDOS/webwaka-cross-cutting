@@ -10,6 +10,12 @@ host = "0.0.0.0"
 
 [vars]
 ENVIRONMENT = "development"
+JWT_SECRET = "dev-secret-for-local-testing-only"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "webwaka-cross-cutting-db-dev"
+database_id = "local"
 
 # ─── Production ──────────────────────────────────────────────────────────────
 [env.production]
