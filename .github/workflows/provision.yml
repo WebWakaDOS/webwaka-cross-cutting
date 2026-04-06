@@ -1,0 +1,41 @@
+name: Provision Cloudflare Infrastructure
+# Run manually via GitHub UI: Actions → Provision → Run workflow
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Provision D1 + KV
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ENV: ${{ github.event.inputs.environment }}
+        run: bash scripts/provision-infra.sh
+
+      - name: Commit updated wrangler.toml
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "chore(infra): provision ${{ github.event.inputs.environment }} D1 + KV IDs"
+          add: "wrangler.toml"
+          default_author: github_actions
