@@ -480,6 +480,7 @@ analyticsRouter.get("/summary", async (c) => {
     return c.json(summary);
   } catch (error: any) {
     console.error("Analytics summary error:", error);
+    if (error instanceof z.ZodError) return c.json({ error: "Invalid query parameters", details: error.errors }, 400);
     return c.json({ error: error.message || "Internal server error" }, 500);
   }
 });

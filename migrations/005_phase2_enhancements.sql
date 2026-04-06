@@ -12,7 +12,7 @@ PRAGMA journal_mode = WAL;
 ALTER TABLE chat_conversations ADD COLUMN title TEXT;
 
 -- chat_messages: file_id and metadata for CC-CHAT-001 / CC-CHAT-002
--- (also declared later in CC-CHAT section; declared here for logical order)
+-- (also declared later in CC-CHAT section, declared here for logical order)
 
 -- hrm_employees: payroll-related fields for CC-HRM-001
 ALTER TABLE hrm_employees ADD COLUMN bank_account TEXT;

@@ -1,6 +1,11 @@
 /**
  * WebWaka Cross-Cutting Worker
  * Cloudflare Worker entry point for all XCT modules.
+ *
+ * Invariants:
+ *   1. Build Once Use Infinitely — auth/JWT from @webwaka/core
+ *   2. tenantId ALWAYS sourced from JWT payload (never from headers)
+ *   3. Nigeria First — monetary values in kobo integers
  */
 
 import { Hono } from "hono";
@@ -9,7 +14,6 @@ import { hrmRouter } from "./modules/hrm/api";
 import { ticketingRouter } from "./modules/ticketing/api";
 import { chatRouter } from "./modules/chat/api";
 import { analyticsRouter } from "./modules/analytics/api";
-import { authMiddleware } from "./middleware/auth";
 import { tenantMiddleware } from "./middleware/tenant";
 
 export type Env = {
@@ -30,13 +34,18 @@ export type Variables = {
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// Global middleware
-app.use("*", tenantMiddleware);
-app.use("/api/*", authMiddleware);
+// Global middleware — JWT + tenant extraction for all /api/* routes
+app.use("/api/*", tenantMiddleware);
 
-// Health check
+// Health check (unauthenticated)
 app.get("/health", (c) =>
-  c.json({ status: "ok", service: "webwaka-cross-cutting", env: c.env.ENVIRONMENT })
+  c.json({
+    status: "ok",
+    service: "webwaka-cross-cutting",
+    version: "1.0.0",
+    env: c.env.ENVIRONMENT,
+    modules: ["crm", "hrm", "ticketing", "chat", "analytics"],
+  })
 );
 
 // Mount module routers

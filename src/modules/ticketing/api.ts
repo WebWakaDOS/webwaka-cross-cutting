@@ -211,7 +211,7 @@ async function applyRoutingRules(
         actions.assigned_to = rule.assign_to;
       }
       if (rule.set_priority || hasUrgency) {
-        const newPriority = hasUrgency ? "critical" : rule.set_priority;
+        const newPriority = hasUrgency ? "critical" : (rule.set_priority || priority);
         updates.push("priority = ?");
         params.push(newPriority);
         actions.new_priority = newPriority;
